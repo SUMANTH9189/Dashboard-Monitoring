@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -44,7 +46,7 @@ app.get("/data", async (req, res) => {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": "Token YOUR_TOKEN",
+        "Authorization": "Token " + process.env.INFLUX_TOKEN,
         "Content-Type": "application/vnd.flux"
       },
       body: query
@@ -52,9 +54,8 @@ app.get("/data", async (req, res) => {
 
     const text = await response.text();
 
-    console.log(text); // debug
+    console.log(text);
 
-    // Parse CSV
     const lines = text.split("\n");
     let values = [];
 
@@ -74,6 +75,8 @@ app.get("/data", async (req, res) => {
 });
 
 // ▶ Start server
-app.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
