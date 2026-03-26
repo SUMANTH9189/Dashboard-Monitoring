@@ -13,6 +13,26 @@ const USERS = {
   "client": "1234"
 };
 
+// 🔐 JWT Middleware (ADD THIS)
+function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+
+  if (!authHeader) {
+    return res.status(403).send("No token provided");
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  jwt.verify(token, "secretkey", (err, decoded) => {
+    if (err) {
+      return res.status(401).send("Invalid token");
+    }
+
+    req.user = decoded;
+    next();
+  });
+}
+
 // ✅ Test route
 app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
@@ -30,8 +50,8 @@ app.post("/login", (req, res) => {
   res.status(401).send("Invalid credentials");
 });
 
-// 📊 Data API
-app.get("/data", async (req, res) => {
+// 📊 Data API (PROTECTED 🔐)
+app.get("/data", verifyToken, async (req, res) => {
 
   const url = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
 
@@ -53,8 +73,6 @@ app.get("/data", async (req, res) => {
     });
 
     const text = await response.text();
-
-    console.log(text);
 
     const lines = text.split("\n");
     let values = [];

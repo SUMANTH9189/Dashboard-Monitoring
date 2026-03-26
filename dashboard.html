@@ -11,23 +11,56 @@
       max-width: 900px;
       margin-top: 20px;
     }
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
 <h2>Dust Dashboard (Live)</h2>
 
+<!-- 🔓 Logout button -->
+<button onclick="logout()">Logout</button>
+
 <canvas id="chart"></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-let chart; // global chart
+let chart;
+
+// 🔐 CHECK LOGIN FIRST
+const token = localStorage.getItem("token");
+
+if (!token) {
+  window.location.href = "login.html";
+}
+
+// 🔓 Logout function
+function logout() {
+  localStorage.removeItem("token");
+  window.location.href = "login.html";
+}
 
 // 🚀 Load data from backend
 async function loadData() {
   try {
-    const res = await fetch("http://localhost:3000/data");
+    const res = await fetch("https://iot-backend-ym55.onrender.com/data", {
+      headers: {
+        "Authorization": "Bearer " + token   // 🔥 IMPORTANT FIX
+      }
+    });
+
+    // ❌ If token invalid → force logout
+    if (res.status === 401 || res.status === 403) {
+      alert("Session expired. Please login again.");
+      logout();
+      return;
+    }
+
     const data = await res.json();
 
     console.log(data);
