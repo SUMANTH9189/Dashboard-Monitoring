@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dust Dashboard</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+    }
+    canvas {
+      max-width: 900px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Dust Dashboard (Live)</h2>
+
+<canvas id="chart"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let chart; // global chart
+
+// 🚀 Load data from backend
+async function loadData() {
+  try {
+    const res = await fetch("http://localhost:3000/data");
+    const data = await res.json();
+
+    console.log(data);
+
+    const labels = data.values.map((_, i) => i + 1);
+
+    // 🔥 FIRST TIME CREATE CHART
+    if (!chart) {
+      chart = new Chart(document.getElementById("chart"), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Dust Data",
+            data: data.values,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    } 
+    // 🔁 UPDATE EXISTING CHART
+    else {
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = data.values;
+      chart.update();
+    }
+
+  } catch (err) {
+    console.error("Error loading data:", err);
+  }
+}
+
+// 🔥 First load
+loadData();
+
+// 🔁 Auto refresh every 5 seconds
+setInterval(loadData, 5000);
+
+</script>
+
+</body>
+</html>

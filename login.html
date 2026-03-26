@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+</head>
+<body>
+
+<h2>Login Page</h2>
+
+<input id="username" placeholder="Username"><br><br>
+<input id="password" type="password" placeholder="Password"><br><br>
+
+<button onclick="login()">Login</button>
+
+<p id="msg"></p>
+
+<script>
+async function login() {
+  const res = await fetch("http://localhost:3000/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      username: document.getElementById("username").value,
+      password: document.getElementById("password").value
+    })
+  });
+
+  if (res.status === 200) {
+    const data = await res.json();
+    localStorage.setItem("token", data.token);
+    document.getElementById("msg").innerText = "Login success ✅";
+  } else {
+    document.getElementById("msg").innerText = "Login failed ❌";
+  }
+}
+</script>
+
+</body>
+</html>
