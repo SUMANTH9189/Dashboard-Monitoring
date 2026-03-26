@@ -44,7 +44,7 @@ app.get("/data", async (req, res) => {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": "Token itamcMLLiZ9JU_TAt_KRh_hpiJRyp61OM25IB1He_JgITN-PVdVK5yRwc0j1tOMXKzerWIRaB58CAgbg1_BIjg==",
+        "Authorization": "Token YOUR_TOKEN",
         "Content-Type": "application/vnd.flux"
       },
       body: query
