@@ -1,21 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>IoT Dashboard</title>
+  <title>ESP32 IoT Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
-      font-family: Arial;
-      background: #0f172a;
-      color: white;
       margin: 0;
-      padding: 20px;
+      font-family: "Segoe UI", sans-serif;
+      background: #0b1220;
+      color: #e5e7eb;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 25px;
+      background: #111827;
+      border-bottom: 1px solid #1f2937;
     }
 
     h1 {
-      text-align: center;
-      margin-bottom: 20px;
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select, button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      background: #1f2937;
+      color: white;
+      cursor: pointer;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .container {
+      padding: 20px;
     }
 
     .cards {
@@ -26,15 +58,22 @@
     }
 
     .card {
-      background: #1e293b;
-      padding: 15px;
+      background: #111827;
+      border: 1px solid #1f2937;
       border-radius: 10px;
+      padding: 15px;
       text-align: center;
     }
 
-    .value {
+    .card-title {
+      font-size: 14px;
+      color: #9ca3af;
+    }
+
+    .card-value {
       font-size: 22px;
-      margin-top: 10px;
+      margin-top: 8px;
+      font-weight: bold;
     }
 
     .charts {
@@ -44,58 +83,65 @@
     }
 
     canvas {
-      background: #1e293b;
+      background: #111827;
       border-radius: 10px;
       padding: 10px;
-    }
-
-    button {
-      display: block;
-      margin: 10px auto;
-      padding: 8px 16px;
-      cursor: pointer;
     }
   </style>
 </head>
 
 <body>
 
-<h1>ESP32 IoT Dashboard</h1>
+<header>
+  <h1>📡 ESP32 IoT Dashboard</h1>
 
-<button onclick="logout()">Logout</button>
+  <div class="controls">
+    <select>
+      <option>Last 1 Hour</option>
+      <option>Last 24 Hours</option>
+    </select>
 
-<!-- 🔥 CARDS -->
-<div class="cards">
-  <div class="card">
-    <div>🌡 Current Temp</div>
-    <div id="tempNow" class="value">--</div>
+    <button onclick="loadData()">🔄 Refresh</button>
+    <span class="status" id="status">Loading...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- 🔥 CARDS -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-title">🌡 Current Temp</div>
+      <div id="tempNow" class="card-value">--</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💧 Humidity</div>
+      <div id="humNow" class="card-value">--</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔺 Max Temp</div>
+      <div id="tempMax" class="card-value">--</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔻 Min Temp</div>
+      <div id="tempMin" class="card-value">--</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Data Points</div>
+      <div id="count" class="card-value">--</div>
+    </div>
   </div>
 
-  <div class="card">
-    <div>💧 Humidity</div>
-    <div id="humNow" class="value">--</div>
+  <!-- 📊 CHARTS -->
+  <div class="charts">
+    <canvas id="tempChart"></canvas>
+    <canvas id="humChart"></canvas>
   </div>
 
-  <div class="card">
-    <div>🔺 Max Temp</div>
-    <div id="tempMax" class="value">--</div>
-  </div>
-
-  <div class="card">
-    <div>🔻 Min Temp</div>
-    <div id="tempMin" class="value">--</div>
-  </div>
-
-  <div class="card">
-    <div>📊 Data Points</div>
-    <div id="count" class="value">--</div>
-  </div>
-</div>
-
-<!-- 📊 CHARTS -->
-<div class="charts">
-  <canvas id="tempChart"></canvas>
-  <canvas id="humChart"></canvas>
 </div>
 
 <script>
@@ -106,79 +152,88 @@ if (!token) {
   window.location.href = "index.html";
 }
 
-function logout() {
-  localStorage.removeItem("token");
-  window.location.href = "index.html";
-}
-
 let tempChart, humChart;
 
 async function loadData() {
 
-  const res = await fetch("/data", {
-    headers: {
-      "Authorization": "Bearer " + token
+  document.getElementById("status").innerText = "Loading...";
+
+  try {
+    const res = await fetch("/data", {
+      headers: {
+        "Authorization": "Bearer " + token
+      }
+    });
+
+    if (res.status !== 200) {
+      document.getElementById("status").innerText = "Auth Error";
+      return;
     }
-  });
 
-  if (res.status !== 200) {
-    alert("Session expired");
-    logout();
-    return;
-  }
+    const data = await res.json();
 
-  const data = await res.json();
+    const temp = data.temperature;
+    const hum = data.humidity;
 
-  const temp = data.temperature;
-  const hum = data.humidity;
+    if (!temp || temp.length === 0) {
+      document.getElementById("status").innerText = "No Data";
+      return;
+    }
 
-  if (!temp || temp.length === 0) return;
+    // 🔥 UPDATE CARDS
+    document.getElementById("tempNow").innerText = temp.at(-1) + " °C";
+    document.getElementById("humNow").innerText = hum.at(-1) + " %";
+    document.getElementById("tempMax").innerText = Math.max(...temp);
+    document.getElementById("tempMin").innerText = Math.min(...temp);
+    document.getElementById("count").innerText = temp.length;
 
-  // 🔥 CARDS UPDATE
-  document.getElementById("tempNow").innerText = temp[temp.length-1] + " °C";
-  document.getElementById("humNow").innerText = hum[hum.length-1] + " %";
-  document.getElementById("tempMax").innerText = Math.max(...temp);
-  document.getElementById("tempMin").innerText = Math.min(...temp);
-  document.getElementById("count").innerText = temp.length;
+    const labels = temp.map((_, i) => i+1);
 
-  const labels = temp.map((_, i) => i+1);
+    // 🌡 TEMP CHART
+    if (!tempChart) {
+      tempChart = new Chart(document.getElementById("tempChart"), {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Temperature (°C)",
+            data: temp,
+            borderColor: "#3b82f6",
+            tension: 0.3
+          }]
+        }
+      });
+    } else {
+      tempChart.data.labels = labels;
+      tempChart.data.datasets[0].data = temp;
+      tempChart.update();
+    }
 
-  // 🌡 TEMP CHART
-  if (!tempChart) {
-    tempChart = new Chart(document.getElementById("tempChart"), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: "Temperature",
-          data: temp,
-          borderWidth: 2
-        }]
-      }
-    });
-  } else {
-    tempChart.data.labels = labels;
-    tempChart.data.datasets[0].data = temp;
-    tempChart.update();
-  }
+    // 💧 HUM CHART
+    if (!humChart) {
+      humChart = new Chart(document.getElementById("humChart"), {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Humidity (%)",
+            data: hum,
+            borderColor: "#ef4444",
+            tension: 0.3
+          }]
+        }
+      });
+    } else {
+      humChart.data.labels = labels;
+      humChart.data.datasets[0].data = hum;
+      humChart.update();
+    }
 
-  // 💧 HUM CHART
-  if (!humChart) {
-    humChart = new Chart(document.getElementById("humChart"), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: "Humidity",
-          data: hum,
-          borderWidth: 2
-        }]
-      }
-    });
-  } else {
-    humChart.data.labels = labels;
-    humChart.data.datasets[0].data = hum;
-    humChart.update();
+    document.getElementById("status").innerText = "Live ✅";
+
+  } catch (err) {
+    document.getElementById("status").innerText = "Error ❌";
+    console.error(err);
   }
 }
 
