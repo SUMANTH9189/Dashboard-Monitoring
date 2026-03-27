@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dust Dashboard</title>
+  <title>IoT Dashboard</title>
   <style>
     body {
       font-family: Arial;
@@ -20,9 +20,13 @@
 </head>
 <body>
 
-<h2>Dust Dashboard (Live)</h2>
+<h2>IoT Dashboard (Live)</h2>
 
 <button onclick="logout()">Logout</button>
+
+<!-- 🔥 LIVE VALUES -->
+<h3>🌡 Temperature: <span id="temp">--</span> °C</h3>
+<h3>💧 Humidity: <span id="hum">--</span> %</h3>
 
 <canvas id="chart"></canvas>
 
@@ -30,7 +34,6 @@
 
 <script>
 
-// 🔥 SAME BASE URL (IMPORTANT)
 const BASE_URL = "";
 
 let chart;
@@ -57,7 +60,6 @@ async function loadData() {
       }
     });
 
-    // 🔴 Token invalid
     if (res.status === 401 || res.status === 403) {
       alert("Session expired. Please login again.");
       logout();
@@ -66,12 +68,20 @@ async function loadData() {
 
     const data = await res.json();
 
-    if (!data.values || data.values.length === 0) {
+    // ✅ Check new format
+    if (!data.temperature || data.temperature.length === 0) {
       console.log("No data available");
       return;
     }
 
     const labels = data.temperature.map((_, i) => i + 1);
+
+    // 🔥 Update live values
+    document.getElementById("temp").innerText =
+      data.temperature[data.temperature.length - 1];
+
+    document.getElementById("hum").innerText =
+      data.humidity[data.humidity.length - 1];
 
     // 📈 Create chart
     if (!chart) {
@@ -79,16 +89,20 @@ async function loadData() {
         type: 'line',
         data: {
           labels: labels,
-          datasets: [{
-            label: "Temperature",
-            data: data.temperature,
-            borderWidth: 2
-          },
-          {
-            label: "Humidity",
-            data: data.humidity,
-            borderWidth: 2
-          }]
+          datasets: [
+            {
+              label: "Temperature (°C)",
+              data: data.temperature,
+              borderWidth: 2,
+              tension: 0.3
+            },
+            {
+              label: "Humidity (%)",
+              data: data.humidity,
+              borderWidth: 2,
+              tension: 0.3
+            }
+          ]
         },
         options: {
           responsive: true,
@@ -103,7 +117,8 @@ async function loadData() {
     // 🔁 Update chart
     else {
       chart.data.labels = labels;
-      chart.data.datasets[0].data = data.values;
+      chart.data.datasets[0].data = data.temperature;
+      chart.data.datasets[1].data = data.humidity;
       chart.update();
     }
 
