@@ -3,17 +3,22 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const path = require("path");
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
+
+// ✅ SERVE FRONTEND FILES
+app.use(express.static(path.join(__dirname, "public")));
 
 // 🔐 Dummy user
 const USERS = {
   "client": "1234"
 };
 
-// 🔐 JWT Middleware (ADD THIS)
+// 🔐 JWT Middleware
 function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
 
@@ -33,9 +38,9 @@ function verifyToken(req, res, next) {
   });
 }
 
-// ✅ Test route
+// ✅ ROOT → SERVE LOGIN PAGE
 app.get("/", (req, res) => {
-  res.send("Backend is running 🚀");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // 🔐 Login API
@@ -50,7 +55,7 @@ app.post("/login", (req, res) => {
   res.status(401).send("Invalid credentials");
 });
 
-// 📊 Data API (PROTECTED 🔐)
+// 📊 Data API (PROTECTED)
 app.get("/data", verifyToken, async (req, res) => {
 
   const url = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";

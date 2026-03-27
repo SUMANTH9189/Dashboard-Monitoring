@@ -22,7 +22,6 @@
 
 <h2>Dust Dashboard (Live)</h2>
 
-<!-- 🔓 Logout button -->
 <button onclick="logout()">Logout</button>
 
 <canvas id="chart"></canvas>
@@ -30,31 +29,35 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+
+// 🔥 SAME BASE URL (IMPORTANT)
+const BASE_URL = "";
+
 let chart;
 
-// 🔐 CHECK LOGIN FIRST
+// 🔐 Check login
 const token = localStorage.getItem("token");
 
 if (!token) {
-  window.location.href = "login.html";
+  window.location.href = "index.html";
 }
 
-// 🔓 Logout function
+// 🔓 Logout
 function logout() {
   localStorage.removeItem("token");
-  window.location.href = "login.html";
+  window.location.href = "index.html";
 }
 
-// 🚀 Load data from backend
+// 📊 Load data
 async function loadData() {
   try {
-    const res = await fetch("https://iot-backend-ym55.onrender.com/data", {
+    const res = await fetch(BASE_URL + "/data", {
       headers: {
-        "Authorization": "Bearer " + token   // 🔥 IMPORTANT FIX
+        "Authorization": "Bearer " + token
       }
     });
 
-    // ❌ If token invalid → force logout
+    // 🔴 Token invalid
     if (res.status === 401 || res.status === 403) {
       alert("Session expired. Please login again.");
       logout();
@@ -63,11 +66,14 @@ async function loadData() {
 
     const data = await res.json();
 
-    console.log(data);
+    if (!data.values || data.values.length === 0) {
+      console.log("No data available");
+      return;
+    }
 
     const labels = data.values.map((_, i) => i + 1);
 
-    // 🔥 FIRST TIME CREATE CHART
+    // 📈 Create chart
     if (!chart) {
       chart = new Chart(document.getElementById("chart"), {
         type: 'line',
@@ -91,7 +97,7 @@ async function loadData() {
         }
       });
     } 
-    // 🔁 UPDATE EXISTING CHART
+    // 🔁 Update chart
     else {
       chart.data.labels = labels;
       chart.data.datasets[0].data = data.values;
@@ -103,10 +109,10 @@ async function loadData() {
   }
 }
 
-// 🔥 First load
+// 🚀 First load
 loadData();
 
-// 🔁 Auto refresh every 5 seconds
+// 🔁 Refresh every 5 sec
 setInterval(loadData, 5000);
 
 </script>

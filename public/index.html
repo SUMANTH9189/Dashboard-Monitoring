@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+</head>
+<body>
+
+<h2>Login</h2>
+
+<input type="text" id="username" placeholder="Username"><br><br>
+<input type="password" id="password" placeholder="Password"><br><br>
+
+<button onclick="login()">Login</button>
+
+<script>
+
+// 🔥 Your backend URL
+const BASE_URL = "https://iot-backend-atfp.onrender.com";
+
+// 🔐 If already logged in → go to dashboard
+const token = localStorage.getItem("token");
+if (token) {
+  window.location.href = "dashboard.html";
+}
+
+async function login() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  try {
+    const res = await fetch(BASE_URL + "/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+
+      console.log("Token received:", data.token);
+
+      // ✅ Save token
+      localStorage.setItem("token", data.token);
+
+      // 🔥 FORCE REDIRECT (FIXED)
+      window.location.replace("dashboard.html");
+
+    } else {
+      alert("Invalid login");
+    }
+
+  } catch (err) {
+    console.error("Error:", err);
+    alert("Server error. Try again later.");
+  }
+}
+
+</script>
+
+</body>
+</html>
