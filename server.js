@@ -104,6 +104,7 @@ app.get("/data", verifyToken, async (req, res) => {
       |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
       |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
+      |> keep(columns: ["_time", "temperature", "humidity"])
       |> sort(columns: ["_time"])
   `;
 
@@ -127,28 +128,21 @@ app.get("/data", verifyToken, async (req, res) => {
 
     lines.forEach(line => {
 
-      // ❌ Skip metadata lines
-      if (
-        line.startsWith("#") ||
-        line.includes("result") ||
-        line.includes("table")
-      ) return;
+      if (line.startsWith("#") || line.includes("_time")) return;
 
       const cols = line.split(",");
 
-      // ✅ Look for timestamp + values
-      const t = cols.find(val => val.includes("T") && val.includes("Z"));
-      const numbers = cols.map(v => parseFloat(v)).filter(v => !isNaN(v));
+      // 🔥 Correct indexes after pivot
+      const t = parseFloat(cols[3]); // temperature
+      const h = parseFloat(cols[4]); // humidity
+      const ts = cols[2]; // time
 
-      if (numbers.length >= 2) {
-        temperature.push(numbers[0]);
-        humidity.push(numbers[1]);
-        time.push(t || new Date().toISOString());
+      if (!isNaN(t) && !isNaN(h)) {
+        temperature.push(t);
+        humidity.push(h);
+        time.push(ts);
       }
-
     });
-
-    console.log("Fetched points:", temperature.length);
 
     res.json({ temperature, humidity, time });
 
@@ -157,7 +151,6 @@ app.get("/data", verifyToken, async (req, res) => {
     res.status(500).send("Error fetching data");
   }
 });
-
 
 // ▶ START SERVER
 const PORT = process.env.PORT || 3000;
