@@ -127,40 +127,28 @@ app.get("/data", verifyToken, async (req, res) => {
 
     lines.forEach(line => {
 
-      // skip headers
+      // ❌ Skip metadata lines
       if (
+        line.startsWith("#") ||
         line.includes("result") ||
-        line.includes("table") ||
-        line.includes("_time")
+        line.includes("table")
       ) return;
 
       const cols = line.split(",");
 
-      // find numeric values safely
-      let temp = null;
-      let hum = null;
+      // ✅ Look for timestamp + values
+      const t = cols.find(val => val.includes("T") && val.includes("Z"));
+      const numbers = cols.map(v => parseFloat(v)).filter(v => !isNaN(v));
 
-      cols.forEach((val) => {
-        const num = parseFloat(val);
-
-        if (!isNaN(num)) {
-          if (temp === null) {
-            temp = num;
-          } else {
-            hum = num;
-          }
-        }
-      });
-
-      if (temp !== null && hum !== null) {
-        temperature.push(temp);
-        humidity.push(hum);
-
-        // optional: push timestamp (for future UI)
-        time.push(new Date().toLocaleTimeString());
+      if (numbers.length >= 2) {
+        temperature.push(numbers[0]);
+        humidity.push(numbers[1]);
+        time.push(t || new Date().toISOString());
       }
 
     });
+
+    console.log("Fetched points:", temperature.length);
 
     res.json({ temperature, humidity, time });
 
