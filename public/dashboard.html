@@ -2,135 +2,188 @@
 <html>
 <head>
   <title>IoT Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       font-family: Arial;
+      background: #0f172a;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 10px;
       text-align: center;
     }
-    canvas {
-      max-width: 900px;
-      margin-top: 20px;
-    }
-    button {
+
+    .value {
+      font-size: 22px;
       margin-top: 10px;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    canvas {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    button {
+      display: block;
+      margin: 10px auto;
       padding: 8px 16px;
       cursor: pointer;
     }
   </style>
 </head>
+
 <body>
 
-<h2>IoT Dashboard (Live)</h2>
+<h1>ESP32 IoT Dashboard</h1>
 
 <button onclick="logout()">Logout</button>
 
-<!-- 🔥 LIVE VALUES -->
-<h3>🌡 Temperature: <span id="temp">--</span> °C</h3>
-<h3>💧 Humidity: <span id="hum">--</span> %</h3>
+<!-- 🔥 CARDS -->
+<div class="cards">
+  <div class="card">
+    <div>🌡 Current Temp</div>
+    <div id="tempNow" class="value">--</div>
+  </div>
 
-<canvas id="chart"></canvas>
+  <div class="card">
+    <div>💧 Humidity</div>
+    <div id="humNow" class="value">--</div>
+  </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <div class="card">
+    <div>🔺 Max Temp</div>
+    <div id="tempMax" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <div>🔻 Min Temp</div>
+    <div id="tempMin" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <div>📊 Data Points</div>
+    <div id="count" class="value">--</div>
+  </div>
+</div>
+
+<!-- 📊 CHARTS -->
+<div class="charts">
+  <canvas id="tempChart"></canvas>
+  <canvas id="humChart"></canvas>
+</div>
 
 <script>
 
-const BASE_URL = "";
-
-let chart;
-
-// 🔐 Check login
 const token = localStorage.getItem("token");
 
 if (!token) {
   window.location.href = "index.html";
 }
 
-// 🔓 Logout
 function logout() {
   localStorage.removeItem("token");
   window.location.href = "index.html";
 }
 
-// 📊 Load data
+let tempChart, humChart;
+
 async function loadData() {
-  try {
-    const res = await fetch(BASE_URL + "/data", {
-      headers: {
-        "Authorization": "Bearer " + token
+
+  const res = await fetch("/data", {
+    headers: {
+      "Authorization": "Bearer " + token
+    }
+  });
+
+  if (res.status !== 200) {
+    alert("Session expired");
+    logout();
+    return;
+  }
+
+  const data = await res.json();
+
+  const temp = data.temperature;
+  const hum = data.humidity;
+
+  if (!temp || temp.length === 0) return;
+
+  // 🔥 CARDS UPDATE
+  document.getElementById("tempNow").innerText = temp[temp.length-1] + " °C";
+  document.getElementById("humNow").innerText = hum[hum.length-1] + " %";
+  document.getElementById("tempMax").innerText = Math.max(...temp);
+  document.getElementById("tempMin").innerText = Math.min(...temp);
+  document.getElementById("count").innerText = temp.length;
+
+  const labels = temp.map((_, i) => i+1);
+
+  // 🌡 TEMP CHART
+  if (!tempChart) {
+    tempChart = new Chart(document.getElementById("tempChart"), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Temperature",
+          data: temp,
+          borderWidth: 2
+        }]
       }
     });
+  } else {
+    tempChart.data.labels = labels;
+    tempChart.data.datasets[0].data = temp;
+    tempChart.update();
+  }
 
-    if (res.status === 401 || res.status === 403) {
-      alert("Session expired. Please login again.");
-      logout();
-      return;
-    }
-
-    const data = await res.json();
-
-    // ✅ Check new format
-    if (!data.temperature || data.temperature.length === 0) {
-      console.log("No data available");
-      return;
-    }
-
-    const labels = data.temperature.map((_, i) => i + 1);
-
-    // 🔥 Update live values
-    document.getElementById("temp").innerText =
-      data.temperature[data.temperature.length - 1];
-
-    document.getElementById("hum").innerText =
-      data.humidity[data.humidity.length - 1];
-
-    // 📈 Create chart
-    if (!chart) {
-      chart = new Chart(document.getElementById("chart"), {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: "Temperature (°C)",
-              data: data.temperature,
-              borderWidth: 2,
-              tension: 0.3
-            },
-            {
-              label: "Humidity (%)",
-              data: data.humidity,
-              borderWidth: 2,
-              tension: 0.3
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }
-      });
-    } 
-    // 🔁 Update chart
-    else {
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = data.temperature;
-      chart.data.datasets[1].data = data.humidity;
-      chart.update();
-    }
-
-  } catch (err) {
-    console.error("Error loading data:", err);
+  // 💧 HUM CHART
+  if (!humChart) {
+    humChart = new Chart(document.getElementById("humChart"), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Humidity",
+          data: hum,
+          borderWidth: 2
+        }]
+      }
+    });
+  } else {
+    humChart.data.labels = labels;
+    humChart.data.datasets[0].data = hum;
+    humChart.update();
   }
 }
 
-// 🚀 First load
+// 🚀 AUTO REFRESH
 loadData();
-
-// 🔁 Refresh every 5 sec
 setInterval(loadData, 5000);
 
 </script>
