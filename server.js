@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ SERVE FRONTEND FILES
+// ✅ SERVE FRONTEND
 app.use(express.static(path.join(__dirname, "public")));
 
 // 🔐 Dummy user
@@ -38,12 +38,12 @@ function verifyToken(req, res, next) {
   });
 }
 
-// ✅ ROOT → SERVE LOGIN PAGE
+// ✅ ROOT
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// 🔐 Login API
+// 🔐 LOGIN
 app.post("/login", (req, res) => {
   const { username, password } = req.body;
 
@@ -55,7 +55,40 @@ app.post("/login", (req, res) => {
   res.status(401).send("Invalid credentials");
 });
 
-// 📊 Data API (PROTECTED)
+
+// 🔥 ===============================
+// 📡 ESP32 SENSOR API (NO AUTH)
+// 🔥 ===============================
+app.get("/sensor", async (req, res) => {
+  const { temperature, humidity } = req.query;
+
+  console.log("ESP32 Data:", temperature, humidity);
+
+  const writeUrl = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
+
+  const lineProtocol = `dht_sensor temperature=${temperature},humidity=${humidity}`;
+
+  try {
+    await fetch(writeUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": "Token " + process.env.INFLUX_TOKEN,
+        "Content-Type": "text/plain"
+      },
+      body: lineProtocol
+    });
+
+    res.send("Data stored");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error writing data");
+  }
+});
+
+
+// 🔥 ===============================
+// 📊 DASHBOARD DATA API (PROTECTED)
+// 🔥 ===============================
 app.get("/data", verifyToken, async (req, res) => {
 
   const url = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
@@ -63,8 +96,8 @@ app.get("/data", verifyToken, async (req, res) => {
   const query = `
     from(bucket: "iot_data")
       |> range(start: -2d)
-      |> filter(fn: (r) => r._measurement == "dust")
-      |> filter(fn: (r) => r._field == "value")
+      |> filter(fn: (r) => r._measurement == "dht_sensor")
+      |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
   `;
 
   try {
@@ -80,16 +113,26 @@ app.get("/data", verifyToken, async (req, res) => {
     const text = await response.text();
 
     const lines = text.split("\n");
-    let values = [];
+
+    let temperature = [];
+    let humidity = [];
 
     lines.forEach(line => {
       const cols = line.split(",");
+
       if (cols.length > 6 && !isNaN(parseFloat(cols[6]))) {
-        values.push(parseFloat(cols[6]));
+
+        if (line.includes("temperature")) {
+          temperature.push(parseFloat(cols[6]));
+        }
+
+        if (line.includes("humidity")) {
+          humidity.push(parseFloat(cols[6]));
+        }
       }
     });
 
-    res.json({ values });
+    res.json({ temperature, humidity });
 
   } catch (error) {
     console.log(error);
@@ -97,7 +140,8 @@ app.get("/data", verifyToken, async (req, res) => {
   }
 });
 
-// ▶ Start server
+
+// ▶ START SERVER
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
