@@ -91,13 +91,19 @@ app.get("/sensor", async (req, res) => {
 // 🔥 ===============================
 app.get("/data", verifyToken, async (req, res) => {
 
+  // 🔥 Get range from frontend (default = 48h)
+  let range = req.query.range || "48h";
+
   const url = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
 
   const query = `
     from(bucket: "iot_data")
-      |> range(start: -2d)
+      |> range(start: -${range})
       |> filter(fn: (r) => r._measurement == "dht_sensor")
+      |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+      |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
+      |> sort(columns: ["_time"])
   `;
 
   try {
@@ -120,15 +126,10 @@ app.get("/data", verifyToken, async (req, res) => {
     lines.forEach(line => {
       const cols = line.split(",");
 
-      if (cols.length > 6 && !isNaN(parseFloat(cols[6]))) {
-
-        if (line.includes("temperature")) {
-          temperature.push(parseFloat(cols[6]));
-        }
-
-        if (line.includes("humidity")) {
-          humidity.push(parseFloat(cols[6]));
-        }
+      // 🔥 IMPORTANT: After pivot → temp & hum in same row
+      if (cols.length > 7 && !isNaN(cols[6])) {
+        temperature.push(parseFloat(cols[6]));
+        humidity.push(parseFloat(cols[7]));
       }
     });
 
