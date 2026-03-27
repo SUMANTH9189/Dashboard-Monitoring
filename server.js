@@ -127,18 +127,14 @@ app.get("/data", verifyToken, async (req, res) => {
 
     lines.forEach(line => {
 
-      // skip metadata & headers
-      if (
-        line.startsWith("#") ||
-        line.includes("result") ||
-        line.includes("table") ||
-        line.includes("_time") ||
-        line.trim() === ""
-      ) return;
+      // ✅ skip only metadata lines
+      if (line.startsWith("#") || line.trim() === "") return;
 
       const cols = line.split(",");
 
-      // 🔥 ALWAYS take LAST columns (safe method)
+      // ✅ ensure it's a valid data row
+      if (cols.length < 5) return;
+
       const temp = parseFloat(cols[cols.length - 2]);
       const hum = parseFloat(cols[cols.length - 1]);
       const ts = cols[3]; // timestamp column
