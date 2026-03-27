@@ -71,7 +71,7 @@ async function loadData() {
       return;
     }
 
-    const labels = data.values.map((_, i) => i + 1);
+    const labels = data.temperature.map((_, i) => i + 1);
 
     // 📈 Create chart
     if (!chart) {
@@ -80,11 +80,14 @@ async function loadData() {
         data: {
           labels: labels,
           datasets: [{
-            label: "Dust Data",
-            data: data.values,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.3
+            label: "Temperature",
+            data: data.temperature,
+            borderWidth: 2
+          },
+          {
+            label: "Humidity",
+            data: data.humidity,
+            borderWidth: 2
           }]
         },
         options: {
