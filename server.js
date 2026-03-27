@@ -64,7 +64,8 @@ app.get("/sensor", async (req, res) => {
 
   console.log("ESP32 Data:", temperature, humidity);
 
-  const writeUrl = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
+  const writeUrl =
+    "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
 
   const lineProtocol = `dht_sensor temperature=${temperature},humidity=${humidity}`;
 
@@ -72,7 +73,7 @@ app.get("/sensor", async (req, res) => {
     await fetch(writeUrl, {
       method: "POST",
       headers: {
-        "Authorization": "Token " + process.env.INFLUX_TOKEN,
+        Authorization: "Token " + process.env.INFLUX_TOKEN,
         "Content-Type": "text/plain"
       },
       body: lineProtocol
@@ -91,10 +92,10 @@ app.get("/sensor", async (req, res) => {
 // 🔥 ===============================
 app.get("/data", verifyToken, async (req, res) => {
 
-  // 🔥 Get range from frontend (default = 48h)
   let range = req.query.range || "48h";
 
-  const url = "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
+  const url =
+    "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
 
   const query = `
     from(bucket: "iot_data")
@@ -110,7 +111,7 @@ app.get("/data", verifyToken, async (req, res) => {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": "Token " + process.env.INFLUX_TOKEN,
+        Authorization: "Token " + process.env.INFLUX_TOKEN,
         "Content-Type": "application/vnd.flux"
       },
       body: query
@@ -122,18 +123,46 @@ app.get("/data", verifyToken, async (req, res) => {
 
     let temperature = [];
     let humidity = [];
+    let time = [];
 
     lines.forEach(line => {
+
+      // skip headers
+      if (
+        line.includes("result") ||
+        line.includes("table") ||
+        line.includes("_time")
+      ) return;
+
       const cols = line.split(",");
 
-      // 🔥 IMPORTANT: After pivot → temp & hum in same row
-      if (cols.length > 7 && !isNaN(cols[6])) {
-        temperature.push(parseFloat(cols[6]));
-        humidity.push(parseFloat(cols[7]));
+      // find numeric values safely
+      let temp = null;
+      let hum = null;
+
+      cols.forEach((val) => {
+        const num = parseFloat(val);
+
+        if (!isNaN(num)) {
+          if (temp === null) {
+            temp = num;
+          } else {
+            hum = num;
+          }
+        }
+      });
+
+      if (temp !== null && hum !== null) {
+        temperature.push(temp);
+        humidity.push(hum);
+
+        // optional: push timestamp (for future UI)
+        time.push(new Date().toLocaleTimeString());
       }
+
     });
 
-    res.json({ temperature, humidity });
+    res.json({ temperature, humidity, time });
 
   } catch (error) {
     console.log(error);
