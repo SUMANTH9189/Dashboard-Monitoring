@@ -119,7 +119,6 @@ app.get("/data", verifyToken, async (req, res) => {
     });
 
     const text = await response.text();
-
     const lines = text.split("\n");
 
     let temperature = [];
@@ -128,21 +127,31 @@ app.get("/data", verifyToken, async (req, res) => {
 
     lines.forEach(line => {
 
-      if (line.startsWith("#") || line.includes("_time")) return;
+      // skip metadata & headers
+      if (
+        line.startsWith("#") ||
+        line.includes("result") ||
+        line.includes("table") ||
+        line.includes("_time") ||
+        line.trim() === ""
+      ) return;
 
       const cols = line.split(",");
 
-      // 🔥 Correct indexes after pivot
-      const t = parseFloat(cols[3]); // temperature
-      const h = parseFloat(cols[4]); // humidity
-      const ts = cols[2]; // time
+      // 🔥 ALWAYS take LAST columns (safe method)
+      const temp = parseFloat(cols[cols.length - 2]);
+      const hum = parseFloat(cols[cols.length - 1]);
+      const ts = cols[3]; // timestamp column
 
-      if (!isNaN(t) && !isNaN(h)) {
-        temperature.push(t);
-        humidity.push(h);
-        time.push(ts);
+      if (!isNaN(temp) && !isNaN(hum)) {
+        temperature.push(temp);
+        humidity.push(hum);
+        time.push(new Date(ts).toLocaleTimeString());
       }
+
     });
+
+    console.log("Fetched points:", temperature.length);
 
     res.json({ temperature, humidity, time });
 
