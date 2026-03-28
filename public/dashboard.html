@@ -126,14 +126,24 @@ async function loadData() {
     const range = document.getElementById("rangeSelect").value;
     const date = document.getElementById("startDate").value;
 
-    let url = `/data?range=${range}`;
-    if (date) url = `/data?date=${date}`;
+    const BASE_URL = "https://iot-backend-atfp.onrender.com";
 
-    console.log("Fetching:", url);
+const token = localStorage.getItem("token");
 
-    const res = await fetch(url, {
-      headers: { "Authorization": "Bearer " + token }
-    });
+console.log("TOKEN:", token);
+
+let url = `${BASE_URL}/data?range=${range}`;
+if (date && date !== "") {
+  url = `${BASE_URL}/data?date=${date}`;
+}
+
+console.log("Fetching:", url);
+
+const res = await fetch(url, {
+  headers: {
+    "Authorization": "Bearer " + token
+  }
+});
 
     // 🔥 HANDLE TOKEN ERROR
     if (res.status === 403 || res.status === 401) {
