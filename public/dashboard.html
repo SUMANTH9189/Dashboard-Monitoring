@@ -64,6 +64,13 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
+      height: 300px; /* ✅ FIX GRAPH SIZE */
+    }
+
+    canvas {
+      background: #111827;
+      border-radius: 10px;
+      padding: 10px;
     }
   </style>
 </head>
@@ -85,7 +92,6 @@
     <input type="date" id="startDate">
 
     <button onclick="loadData()">Refresh</button>
-    <button onclick="downloadCSV()">⬇ CSV</button>
 
     <span id="status">Loading...</span>
   </div>
@@ -112,10 +118,22 @@
 
 <script>
 
-const token = localStorage.getItem("token");
-if (!token) window.location.href = "index.html";
+const BASE_URL = "https://iot-backend-atfp.onrender.com";
 
 let tempChart, humChart;
+
+// 🔐 TOKEN CHECK
+function getToken() {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Login required");
+    window.location.href = "index.html";
+    return null;
+  }
+
+  return token;
+}
 
 async function loadData() {
 
@@ -123,40 +141,34 @@ async function loadData() {
 
   try {
 
+    const token = getToken();
+    if (!token) return;
+
     const range = document.getElementById("rangeSelect").value;
     const date = document.getElementById("startDate").value;
 
-    const BASE_URL = "https://iot-backend-atfp.onrender.com";
+    let url = `${BASE_URL}/data?range=${range}`;
+    if (date) url = `${BASE_URL}/data?date=${date}`;
 
-const token = localStorage.getItem("token");
+    console.log("URL:", url);
 
-console.log("TOKEN:", token);
+    const res = await fetch(url, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
 
-let url = `${BASE_URL}/data?range=${range}`;
-if (date && date !== "") {
-  url = `${BASE_URL}/data?date=${date}`;
-}
-
-console.log("Fetching:", url);
-
-const res = await fetch(url, {
-  headers: {
-    "Authorization": "Bearer " + token
-  }
-});
-
-    // 🔥 HANDLE TOKEN ERROR
-    if (res.status === 403 || res.status === 401) {
+    if (res.status === 401 || res.status === 403) {
       localStorage.clear();
-      alert("Session expired. Please login again.");
+      alert("Session expired");
       window.location.href = "index.html";
       return;
     }
 
     const data = await res.json();
 
-    const temp = (data.temperature || []).filter(v => !isNaN(v));
-    const hum = (data.humidity || []).filter(v => !isNaN(v));
+    const temp = data.temperature || [];
+    const hum = data.humidity || [];
     const labels = data.time || [];
 
     if (temp.length === 0) {
@@ -164,11 +176,11 @@ const res = await fetch(url, {
       return;
     }
 
-    // CARDS
-    document.getElementById("tempNow").innerText = temp.at(-1).toFixed(2) + " °C";
-    document.getElementById("humNow").innerText = hum.at(-1).toFixed(2) + " %";
-    document.getElementById("tempMax").innerText = Math.max(...temp).toFixed(2);
-    document.getElementById("tempMin").innerText = Math.min(...temp).toFixed(2);
+    // 🔥 CARDS
+    document.getElementById("tempNow").innerText = temp.at(-1) + " °C";
+    document.getElementById("humNow").innerText = hum.at(-1) + " %";
+    document.getElementById("tempMax").innerText = Math.max(...temp);
+    document.getElementById("tempMin").innerText = Math.min(...temp);
     document.getElementById("count").innerText = temp.length;
 
     const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
@@ -177,22 +189,19 @@ const res = await fetch(url, {
     document.getElementById("avgTemp").innerText = avgTemp.toFixed(2);
     document.getElementById("avgHum").innerText = avgHum.toFixed(2);
 
-    // TEMP CHART
+    // 🌡 TEMP CHART
     if (!tempChart) {
       tempChart = new Chart(document.getElementById("tempChart"), {
         type: "line",
         data: {
           labels: labels,
           datasets: [{
-            label: "Temperature (°C)",
+            label: "Temperature",
             data: temp,
             borderColor: "#3b82f6",
-            borderWidth: 2,
-            pointRadius: 2,
             tension: 0.2
           }]
-        },
-        options: chartOptions()
+        }
       });
     } else {
       tempChart.data.labels = labels;
@@ -200,22 +209,19 @@ const res = await fetch(url, {
       tempChart.update();
     }
 
-    // HUM CHART
+    // 💧 HUM CHART
     if (!humChart) {
       humChart = new Chart(document.getElementById("humChart"), {
         type: "line",
         data: {
           labels: labels,
           datasets: [{
-            label: "Humidity (%)",
+            label: "Humidity",
             data: hum,
             borderColor: "#ef4444",
-            borderWidth: 2,
-            pointRadius: 2,
             tension: 0.2
           }]
-        },
-        options: chartOptions()
+        }
       });
     } else {
       humChart.data.labels = labels;
@@ -231,19 +237,7 @@ const res = await fetch(url, {
   }
 }
 
-function chartOptions() {
-  return {
-    responsive: true,
-    plugins: {
-      legend: { labels: { color: "white" } }
-    },
-    scales: {
-      x: { ticks: { color: "white" } },
-      y: { ticks: { color: "white" } }
-    }
-  };
-}
-
+// 🚀 START
 loadData();
 setInterval(loadData, 10000);
 

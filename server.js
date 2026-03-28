@@ -74,7 +74,6 @@ app.get("/data", verifyToken, async (req, res) => {
 
   let rangeQuery;
 
-  // ✅ DATE FILTER FIXED
   if (req.query.date) {
     const start = `${req.query.date}T00:00:00Z`;
     const end = `${req.query.date}T23:59:59Z`;
@@ -92,6 +91,7 @@ app.get("/data", verifyToken, async (req, res) => {
       |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
       |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
+      |> keep(columns: ["_time","temperature","humidity"])
       |> sort(columns: ["_time"])
   `;
 
@@ -110,9 +110,6 @@ app.get("/data", verifyToken, async (req, res) => {
     );
 
     const text = await response.text();
-
-    console.log("RAW RESPONSE:", text.substring(0, 200)); // debug
-
     const lines = text.split("\n");
 
     let temperature = [];
@@ -123,34 +120,30 @@ app.get("/data", verifyToken, async (req, res) => {
 
       if (
         line.startsWith("#") ||
-        line.includes("result") ||
-        line.includes("table") ||
+        line.includes("_time") ||
         line.trim() === ""
       ) return;
 
       const cols = line.split(",");
-      if (cols.length < 6) return;
 
+      // ✅ FIX: safer column parsing
       const ts = cols[3];
       const temp = parseFloat(cols[cols.length - 2]);
       const hum = parseFloat(cols[cols.length - 1]);
 
       if (!isNaN(temp) && !isNaN(hum)) {
-
         temperature.push(temp);
         humidity.push(hum);
 
         const d = new Date(ts);
-
-        // ✅ CLEAN TIME FORMAT
         time.push(
-          d.toLocaleString("en-IN", {
+          d.toLocaleTimeString([], {
             hour: "2-digit",
-            minute: "2-digit",
-            hour12: true
+            minute: "2-digit"
           })
         );
       }
+
     });
 
     console.log("POINTS:", temperature.length);
