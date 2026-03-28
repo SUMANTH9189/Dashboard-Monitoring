@@ -10,19 +10,14 @@
       font-family: "Segoe UI", sans-serif;
       background: #0b1220;
       color: #e5e7eb;
+      overflow-x: hidden;
     }
 
     header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
       padding: 15px 25px;
       background: #111827;
-      border-bottom: 1px solid #1f2937;
-    }
-
-    h1 {
-      font-size: 20px;
     }
 
     .controls {
@@ -56,20 +51,18 @@
       text-align: center;
     }
 
-    .card-title {
-      color: #9ca3af;
-    }
-
-    .card-value {
-      font-size: 22px;
-      font-weight: bold;
-    }
-
     .charts {
       margin-top: 20px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 20px;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 300px !important;
+      background: #111827;
+      border-radius: 10px;
     }
   </style>
 </head>
@@ -77,7 +70,7 @@
 <body>
 
 <header>
-  <h1>📡 SRIOT Dashboard</h1>
+  <h2>📡 SRIOT Dashboard</h2>
 
   <div class="controls">
     <select id="rangeSelect" onchange="loadData()">
@@ -85,15 +78,11 @@
       <option value="30m">30 min</option>
       <option value="1h" selected>1 hour</option>
       <option value="24h">24 hours</option>
-      <option value="48h">48 hours</option>
     </select>
 
-    <!-- 🔥 DATE PICKER -->
     <input type="date" id="startDate">
 
     <button onclick="loadData()">Refresh</button>
-    <button onclick="downloadCSV()">⬇ CSV</button>
-
     <span id="status">Loading...</span>
   </div>
 </header>
@@ -101,24 +90,21 @@
 <div class="container">
 
 <div class="cards">
-  <div class="card"><div class="card-title">Temp</div><div id="tempNow" class="card-value">--</div></div>
-  <div class="card"><div class="card-title">Humidity</div><div id="humNow" class="card-value">--</div></div>
-  <div class="card"><div class="card-title">Max</div><div id="tempMax" class="card-value">--</div></div>
-  <div class="card"><div class="card-title">Min</div><div id="tempMin" class="card-value">--</div></div>
-  <div class="card"><div class="card-title">Points</div><div id="count" class="card-value">--</div></div>
-  <div class="card"><div class="card-title">Avg Temp</div><div id="avgTemp" class="card-value">--</div></div>
-  <div class="card"><div class="card-title">Avg Hum</div><div id="avgHum" class="card-value">--</div></div>
+  <div class="card"><div>Temp</div><div id="tempNow">--</div></div>
+  <div class="card"><div>Humidity</div><div id="humNow">--</div></div>
+  <div class="card"><div>Max</div><div id="tempMax">--</div></div>
+  <div class="card"><div>Min</div><div id="tempMin">--</div></div>
+  <div class="card"><div>Points</div><div id="count">--</div></div>
+  <div class="card"><div>Avg Temp</div><div id="avgTemp">--</div></div>
+  <div class="card"><div>Avg Hum</div><div id="avgHum">--</div></div>
 </div>
 
 <div class="charts">
   <canvas id="tempChart"></canvas>
   <canvas id="humChart"></canvas>
 </div>
-<div id="avgTemp"></div>
-<div id="avgHum"></div>
-</div>
 
-<!-- ONLY SCRIPT PART SHOWN (UI already good) -->
+</div>
 
 <script>
 
@@ -131,121 +117,91 @@ async function loadData() {
 
   document.getElementById("status").innerText = "Loading...";
 
-  try {
+  const range = document.getElementById("rangeSelect").value;
+  const date = document.getElementById("startDate").value;
 
-    const range = document.getElementById("rangeSelect").value;
-    const date = document.getElementById("startDate").value;
+  let url = `/data?range=${range}`;
+  if (date) url = `/data?date=${date}`;
 
-    let url = `/data?range=${range}`;
-    if (date) url = `/data?date=${date}`;
+  const res = await fetch(url, {
+    headers: { "Authorization": "Bearer " + token }
+  });
 
-    const res = await fetch(url, {
-      headers: { "Authorization": "Bearer " + token }
-    });
+  const data = await res.json();
 
-    const data = await res.json();
+  let temp = data.temperature || [];
+  let hum = data.humidity || [];
+  let labels = data.time || [];
 
-    const temp = (data.temperature || []).filter(v => !isNaN(v));
-    const hum = (data.humidity || []).filter(v => !isNaN(v));
-    const labels = data.time || [];
+  // 🔥 LIMIT DATA
+  const MAX = 50;
+  temp = temp.slice(-MAX);
+  hum = hum.slice(-MAX);
+  labels = labels.slice(-MAX);
 
-    if (temp.length === 0) {
-      document.getElementById("status").innerText = "No Data";
-      return;
-    }
-
-    // ✅ CARDS
-    document.getElementById("tempNow").innerText = temp.at(-1).toFixed(2) + " °C";
-    document.getElementById("humNow").innerText = hum.at(-1).toFixed(2) + " %";
-    document.getElementById("tempMax").innerText = Math.max(...temp).toFixed(2);
-    document.getElementById("tempMin").innerText = Math.min(...temp).toFixed(2);
-    document.getElementById("count").innerText = temp.length;
-
-    // ✅ AVG FIX
-    const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
-    const avgHum = hum.reduce((a,b)=>a+b,0)/hum.length;
-
-    document.getElementById("avgTemp").innerText = avgTemp.toFixed(2);
-    document.getElementById("avgHum").innerText = avgHum.toFixed(2);
-
-    // 🌡 TEMP CHART
-    if (!tempChart) {
-      tempChart = new Chart(tempChart = document.getElementById("tempChart"), {
-        type: "line",
-        data: {
-          labels: labels,
-          datasets: [{
-            label: "Temperature (°C)",
-            data: temp,
-            borderColor: "#3b82f6",
-            borderWidth: 2,
-            pointRadius: 2,
-            tension: 0.2
-          }]
-        },
-        options: chartOptions()
-      });
-    } else {
-      tempChart.data.labels = labels;
-      tempChart.data.datasets[0].data = temp;
-      tempChart.update();
-    }
-
-    // 💧 HUM CHART
-    if (!humChart) {
-      humChart = new Chart(document.getElementById("humChart"), {
-        type: "line",
-        data: {
-          labels: labels,
-          datasets: [{
-            label: "Humidity (%)",
-            data: hum,
-            borderColor: "#ef4444",
-            borderWidth: 2,
-            pointRadius: 2,
-            tension: 0.2
-          }]
-        },
-        options: chartOptions()
-      });
-    } else {
-      humChart.data.labels = labels;
-      humChart.data.datasets[0].data = hum;
-      humChart.update();
-    }
-
-    document.getElementById("status").innerText = "Live ✅";
-
-  } catch (err) {
-    console.error(err);
-    document.getElementById("status").innerText = "Error ❌";
+  if (temp.length === 0) {
+    document.getElementById("status").innerText = "No Data";
+    return;
   }
+
+  document.getElementById("tempNow").innerText = temp.at(-1).toFixed(2);
+  document.getElementById("humNow").innerText = hum.at(-1).toFixed(2);
+  document.getElementById("tempMax").innerText = Math.max(...temp).toFixed(2);
+  document.getElementById("tempMin").innerText = Math.min(...temp).toFixed(2);
+  document.getElementById("count").innerText = temp.length;
+
+  const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
+  const avgHum = hum.reduce((a,b)=>a+b,0)/hum.length;
+
+  document.getElementById("avgTemp").innerText = avgTemp.toFixed(2);
+  document.getElementById("avgHum").innerText = avgHum.toFixed(2);
+
+  if (!tempChart) {
+    tempChart = new Chart(document.getElementById("tempChart"), {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [{ data: temp, borderColor: "#3b82f6" }]
+      },
+      options: chartOptions()
+    });
+  } else {
+    tempChart.data.labels = labels;
+    tempChart.data.datasets[0].data = temp;
+    tempChart.update();
+  }
+
+  if (!humChart) {
+    humChart = new Chart(document.getElementById("humChart"), {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [{ data: hum, borderColor: "#ef4444" }]
+      },
+      options: chartOptions()
+    });
+  } else {
+    humChart.data.labels = labels;
+    humChart.data.datasets[0].data = hum;
+    humChart.update();
+  }
+
+  document.getElementById("status").innerText = "Live ✅";
 }
 
-// ✅ CLEAN CHART STYLE
 function chartOptions() {
   return {
     responsive: true,
-    plugins: {
-      legend: { labels: { color: "white" } }
-    },
+    plugins: { legend: { display: false } },
     scales: {
-      x: {
-        ticks: {
-          color: "white",
-          maxRotation: 0
-        }
-      },
-      y: {
-        ticks: { color: "white" }
-      }
+      x: { ticks: { maxTicksLimit: 6, color: "white" } },
+      y: { ticks: { color: "white" } }
     }
   };
 }
 
-// 🚀 AUTO REFRESH
 loadData();
-setInterval(loadData, 10000); // slower = stable
+setInterval(loadData, 10000);
 
 </script>
 
