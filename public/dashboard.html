@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32 IoT Dashboard</title>
+  <title>SRIOT Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -22,7 +22,6 @@
     }
 
     h1 {
-      margin: 0;
       font-size: 20px;
     }
 
@@ -32,18 +31,12 @@
       align-items: center;
     }
 
-    select, button {
+    select, button, input {
       padding: 6px 10px;
       border-radius: 6px;
       border: none;
       background: #1f2937;
       color: white;
-      cursor: pointer;
-    }
-
-    .status {
-      font-size: 12px;
-      color: #9ca3af;
     }
 
     .container {
@@ -52,40 +45,31 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(7, 1fr); /* 🔥 UPDATED */
+      grid-template-columns: repeat(7, 1fr);
       gap: 15px;
-      margin-bottom: 20px;
     }
 
     .card {
       background: #111827;
-      border: 1px solid #1f2937;
-      border-radius: 10px;
       padding: 15px;
+      border-radius: 10px;
       text-align: center;
     }
 
     .card-title {
-      font-size: 14px;
       color: #9ca3af;
     }
 
     .card-value {
       font-size: 22px;
-      margin-top: 8px;
       font-weight: bold;
     }
 
     .charts {
+      margin-top: 20px;
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
-    }
-
-    canvas {
-      background: #111827;
-      border-radius: 10px;
-      padding: 10px;
     }
   </style>
 </head>
@@ -93,139 +77,114 @@
 <body>
 
 <header>
-  <h1>📡 ESP32 IoT Dashboard</h1>
+  <h1>📡 SRIOT Dashboard</h1>
 
   <div class="controls">
     <select id="rangeSelect" onchange="loadData()">
-      <option value="5m">Last 5 min</option>
-      <option value="30m">Last 30 min</option>
-      <option value="1h" selected>Last 1 hour</option>
-      <option value="24h">Last 24 hours</option>
-      <option value="48h">Last 48 hours</option>
+      <option value="5m">5 min</option>
+      <option value="30m">30 min</option>
+      <option value="1h" selected>1 hour</option>
+      <option value="24h">24 hours</option>
+      <option value="48h">48 hours</option>
     </select>
 
-    <button onclick="loadData()">🔄 Refresh</button>
-    <span class="status" id="status">Loading...</span>
+    <!-- 🔥 DATE PICKER -->
+    <input type="date" id="startDate">
+    <input type="date" id="endDate">
+
+    <button onclick="loadData()">Refresh</button>
+    <button onclick="downloadCSV()">⬇ CSV</button>
+
+    <span id="status">Loading...</span>
   </div>
 </header>
 
 <div class="container">
 
-  <!-- 🔥 CARDS -->
-  <div class="cards">
-    <div class="card">
-      <div class="card-title">🌡 Current Temp</div>
-      <div id="tempNow" class="card-value">--</div>
-    </div>
+<div class="cards">
+  <div class="card"><div class="card-title">Temp</div><div id="tempNow" class="card-value">--</div></div>
+  <div class="card"><div class="card-title">Humidity</div><div id="humNow" class="card-value">--</div></div>
+  <div class="card"><div class="card-title">Max</div><div id="tempMax" class="card-value">--</div></div>
+  <div class="card"><div class="card-title">Min</div><div id="tempMin" class="card-value">--</div></div>
+  <div class="card"><div class="card-title">Points</div><div id="count" class="card-value">--</div></div>
+  <div class="card"><div class="card-title">Avg Temp</div><div id="avgTemp" class="card-value">--</div></div>
+  <div class="card"><div class="card-title">Avg Hum</div><div id="avgHum" class="card-value">--</div></div>
+</div>
 
-    <div class="card">
-      <div class="card-title">💧 Humidity</div>
-      <div id="humNow" class="card-value">--</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">🔺 Max Temp</div>
-      <div id="tempMax" class="card-value">--</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">🔻 Min Temp</div>
-      <div id="tempMin" class="card-value">--</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">📊 Data Points</div>
-      <div id="count" class="card-value">--</div>
-    </div>
-
-    <!-- 🔥 NEW -->
-    <div class="card">
-      <div class="card-title">📊 Avg Temp</div>
-      <div id="avgTemp" class="card-value">--</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">📊 Avg Humidity</div>
-      <div id="avgHum" class="card-value">--</div>
-    </div>
-  </div>
-
-  <!-- 📊 CHARTS -->
-  <div class="charts">
-    <canvas id="tempChart"></canvas>
-    <canvas id="humChart"></canvas>
-  </div>
+<div class="charts">
+  <canvas id="tempChart"></canvas>
+  <canvas id="humChart"></canvas>
+</div>
 
 </div>
 
 <script>
 
 const token = localStorage.getItem("token");
-
-if (!token) {
-  window.location.href = "index.html";
-}
+if (!token) window.location.href = "index.html";
 
 let tempChart, humChart;
+let currentData = [];
+
+function smooth(data) {
+  // 🔥 Moving average smoothing (fix spikes)
+  return data.map((v, i, arr) => {
+    const prev = arr[i-1] || v;
+    const next = arr[i+1] || v;
+    return ((prev + v + next)/3).toFixed(2);
+  });
+}
 
 async function loadData() {
 
   document.getElementById("status").innerText = "Loading...";
 
   const range = document.getElementById("rangeSelect").value;
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+
+  let url = `/data?range=${range}`;
+
+  if (start && end) {
+    url = `/data?start=${start}&end=${end}`; // backend optional
+  }
 
   try {
-    const res = await fetch(`/data?range=${range}`, {
-      headers: {
-        "Authorization": "Bearer " + token
-      }
+    const res = await fetch(url, {
+      headers: { "Authorization": "Bearer " + token }
     });
 
-    if (res.status !== 200) {
-      document.getElementById("status").innerText = "Auth Error";
-      return;
-    }
-
     const data = await res.json();
+    currentData = data;
 
-    const temp = data.temperature;
-    const hum = data.humidity;
+    let temp = smooth(data.temperature);
+    let hum = smooth(data.humidity);
 
-    if (!temp || temp.length === 0) {
+    if (temp.length === 0) {
       document.getElementById("status").innerText = "No Data";
       return;
     }
 
-    // 🔥 CARDS
+    // CARDS
     document.getElementById("tempNow").innerText = temp.at(-1) + " °C";
     document.getElementById("humNow").innerText = hum.at(-1) + " %";
     document.getElementById("tempMax").innerText = Math.max(...temp);
     document.getElementById("tempMin").innerText = Math.min(...temp);
     document.getElementById("count").innerText = temp.length;
 
-    // 🔥 AVERAGE
     const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
     const avgHum = hum.reduce((a,b)=>a+b,0)/hum.length;
 
-    document.getElementById("avgTemp").innerText = avgTemp.toFixed(1) + " °C";
-    document.getElementById("avgHum").innerText = avgHum.toFixed(1) + " %";
+    document.getElementById("avgTemp").innerText = avgTemp.toFixed(1);
+    document.getElementById("avgHum").innerText = avgHum.toFixed(1);
 
-    // 🔥 USE REAL TIME
     const labels = data.time;
 
-    // 🌡 TEMP CHART
+    // TEMP CHART
     if (!tempChart) {
-      tempChart = new Chart(document.getElementById("tempChart"), {
+      tempChart = new Chart(tempChartCanvas, {
         type: "line",
-        data: {
-          labels: labels,
-          datasets: [{
-            label: "Temperature (°C)",
-            data: temp,
-            borderColor: "#3b82f6",
-            tension: 0.3
-          }]
-        }
+        data: { labels, datasets:[{data: temp, borderColor:"#3b82f6"}] }
       });
     } else {
       tempChart.data.labels = labels;
@@ -233,19 +192,11 @@ async function loadData() {
       tempChart.update();
     }
 
-    // 💧 HUM CHART
+    // HUM CHART
     if (!humChart) {
-      humChart = new Chart(document.getElementById("humChart"), {
+      humChart = new Chart(humChartCanvas, {
         type: "line",
-        data: {
-          labels: labels,
-          datasets: [{
-            label: "Humidity (%)",
-            data: hum,
-            borderColor: "#ef4444",
-            tension: 0.3
-          }]
-        }
+        data: { labels, datasets:[{data: hum, borderColor:"#ef4444"}] }
       });
     } else {
       humChart.data.labels = labels;
@@ -256,12 +207,25 @@ async function loadData() {
     document.getElementById("status").innerText = "Live ✅";
 
   } catch (err) {
-    document.getElementById("status").innerText = "Error ❌";
-    console.error(err);
+    document.getElementById("status").innerText = "Error";
   }
 }
 
-// 🚀 AUTO REFRESH
+// 🔥 CSV DOWNLOAD
+function downloadCSV() {
+  let csv = "Time,Temperature,Humidity\n";
+
+  currentData.time.forEach((t,i)=>{
+    csv += `${t},${currentData.temperature[i]},${currentData.humidity[i]}\n`;
+  });
+
+  const blob = new Blob([csv], {type:"text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "iot_data.csv";
+  a.click();
+}
+
 loadData();
 setInterval(loadData, 5000);
 

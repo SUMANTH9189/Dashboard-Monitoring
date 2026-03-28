@@ -70,14 +70,29 @@ app.get("/sensor", async (req, res) => {
 // 📊 DATA API
 app.get("/data", verifyToken, async (req, res) => {
 
-  let range = req.query.range || "1h";   // ✅ IMPORTANT FIX
+  let rangeQuery;
+
+  // 🔥 DATE FILTER (PRIORITY)
+  if (req.query.start && req.query.end) {
+
+    const start = req.query.start + "T00:00:00Z";
+    const end = req.query.end + "T23:59:59Z";
+
+    rangeQuery = `|> range(start: ${start}, stop: ${end})`;
+
+  } else {
+
+    let range = req.query.range || "1h";
+    rangeQuery = `|> range(start: -${range})`;
+
+  }
 
   const url =
     "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
 
   const query = `
     from(bucket: "iot_data")
-      |> range(start: -${range})
+      ${rangeQuery}
       |> filter(fn: (r) => r._measurement == "dht_sensor")
       |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
       |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)
@@ -117,7 +132,7 @@ app.get("/data", verifyToken, async (req, res) => {
       if (!isNaN(temp) && !isNaN(hum)) {
         temperature.push(temp);
         humidity.push(hum);
-        time.push(new Date(ts).toLocaleTimeString());
+        time.push(new Date(ts).toLocaleString()); // 🔥 FULL DATE+TIME
       }
     });
 
