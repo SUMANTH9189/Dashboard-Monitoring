@@ -121,70 +121,90 @@
 <script>
 
 const token = localStorage.getItem("token");
-if (!token) window.location.href = "index.html";
+
+if (!token) {
+  window.location.href = "index.html";
+}
 
 let tempChart, humChart;
-let currentData = [];
-
-function smooth(data) {
-  // 🔥 Moving average smoothing (fix spikes)
-  return data.map((v, i, arr) => {
-    const prev = arr[i-1] || v;
-    const next = arr[i+1] || v;
-    return ((prev + v + next)/3).toFixed(2);
-  });
-}
 
 async function loadData() {
 
   document.getElementById("status").innerText = "Loading...";
 
-  const range = document.getElementById("rangeSelect").value;
-  const start = document.getElementById("startDate").value;
-  const end = document.getElementById("endDate").value;
-
-  let url = `/data?range=${range}`;
-
-  if (start && end) {
-    url = `/data?start=${start}&end=${end}`; // backend optional
-  }
-
   try {
+
+    const range = document.getElementById("rangeSelect").value;
+    const start = document.getElementById("startDate")?.value;
+    const end = document.getElementById("endDate")?.value;
+
+    let url = `/data?range=${range}`;
+
+    if (start && end) {
+      url = `/data?start=${start}&end=${end}`;
+    }
+
     const res = await fetch(url, {
-      headers: { "Authorization": "Bearer " + token }
+      headers: {
+        "Authorization": "Bearer " + token
+      }
     });
 
-    const data = await res.json();
-    currentData = data;
+    if (!res.ok) {
+      document.getElementById("status").innerText = "Error ❌";
+      return;
+    }
 
-    let temp = smooth(data.temperature);
-    let hum = smooth(data.humidity);
+    const data = await res.json();
+
+    // ✅ SAFE DATA CLEANING
+    const temp = (data.temperature || []).filter(v => !isNaN(v));
+    const hum = (data.humidity || []).filter(v => !isNaN(v));
+    const labels = data.time || [];
 
     if (temp.length === 0) {
       document.getElementById("status").innerText = "No Data";
       return;
     }
 
-    // CARDS
-    document.getElementById("tempNow").innerText = temp.at(-1) + " °C";
-    document.getElementById("humNow").innerText = hum.at(-1) + " %";
-    document.getElementById("tempMax").innerText = Math.max(...temp);
-    document.getElementById("tempMin").innerText = Math.min(...temp);
+    // 🔥 CARDS
+    document.getElementById("tempNow").innerText = temp.at(-1).toFixed(2) + " °C";
+    document.getElementById("humNow").innerText = hum.at(-1).toFixed(2) + " %";
+    document.getElementById("tempMax").innerText = Math.max(...temp).toFixed(2);
+    document.getElementById("tempMin").innerText = Math.min(...temp).toFixed(2);
     document.getElementById("count").innerText = temp.length;
 
-    const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
-    const avgHum = hum.reduce((a,b)=>a+b,0)/hum.length;
+    // ✅ FIX NaN ISSUE
+    const avgTemp = temp.reduce((a, b) => a + b, 0) / temp.length;
+    const avgHum = hum.reduce((a, b) => a + b, 0) / hum.length;
 
-    document.getElementById("avgTemp").innerText = avgTemp.toFixed(1);
-    document.getElementById("avgHum").innerText = avgHum.toFixed(1);
+    document.getElementById("avgTemp").innerText = avgTemp.toFixed(2);
+    document.getElementById("avgHum").innerText = avgHum.toFixed(2);
 
-    const labels = data.time;
-
-    // TEMP CHART
+    // 🌡 TEMP CHART
     if (!tempChart) {
-      tempChart = new Chart(tempChartCanvas, {
+      tempChart = new Chart(document.getElementById("tempChart"), {
         type: "line",
-        data: { labels, datasets:[{data: temp, borderColor:"#3b82f6"}] }
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Temperature (°C)",
+            data: temp,
+            borderColor: "#3b82f6",
+            tension: 0.3,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "white" } }
+          },
+          scales: {
+            x: { ticks: { color: "white" } },
+            y: { ticks: { color: "white" } }
+          }
+        }
       });
     } else {
       tempChart.data.labels = labels;
@@ -192,11 +212,30 @@ async function loadData() {
       tempChart.update();
     }
 
-    // HUM CHART
+    // 💧 HUM CHART
     if (!humChart) {
-      humChart = new Chart(humChartCanvas, {
+      humChart = new Chart(document.getElementById("humChart"), {
         type: "line",
-        data: { labels, datasets:[{data: hum, borderColor:"#ef4444"}] }
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Humidity (%)",
+            data: hum,
+            borderColor: "#ef4444",
+            tension: 0.3,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "white" } }
+          },
+          scales: {
+            x: { ticks: { color: "white" } },
+            y: { ticks: { color: "white" } }
+          }
+        }
       });
     } else {
       humChart.data.labels = labels;
@@ -207,25 +246,12 @@ async function loadData() {
     document.getElementById("status").innerText = "Live ✅";
 
   } catch (err) {
-    document.getElementById("status").innerText = "Error";
+    console.error(err);
+    document.getElementById("status").innerText = "Error ❌";
   }
 }
 
-// 🔥 CSV DOWNLOAD
-function downloadCSV() {
-  let csv = "Time,Temperature,Humidity\n";
-
-  currentData.time.forEach((t,i)=>{
-    csv += `${t},${currentData.temperature[i]},${currentData.humidity[i]}\n`;
-  });
-
-  const blob = new Blob([csv], {type:"text/csv"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "iot_data.csv";
-  a.click();
-}
-
+// 🚀 AUTO REFRESH
 loadData();
 setInterval(loadData, 5000);
 
