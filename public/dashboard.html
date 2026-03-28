@@ -90,7 +90,6 @@
 
     <!-- 🔥 DATE PICKER -->
     <input type="date" id="startDate">
-    <input type="date" id="endDate">
 
     <button onclick="loadData()">Refresh</button>
     <button onclick="downloadCSV()">⬇ CSV</button>
@@ -119,13 +118,12 @@
 <div id="avgHum"></div>
 </div>
 
+<!-- ONLY SCRIPT PART SHOWN (UI already good) -->
+
 <script>
 
 const token = localStorage.getItem("token");
-
-if (!token) {
-  window.location.href = "index.html";
-}
+if (!token) window.location.href = "index.html";
 
 let tempChart, humChart;
 
@@ -136,29 +134,17 @@ async function loadData() {
   try {
 
     const range = document.getElementById("rangeSelect").value;
-    const start = document.getElementById("startDate")?.value;
-    const end = document.getElementById("endDate")?.value;
+    const date = document.getElementById("startDate").value;
 
     let url = `/data?range=${range}`;
-
-    if (start && end) {
-      url = `/data?start=${start}&end=${end}`;
-    }
+    if (date) url = `/data?date=${date}`;
 
     const res = await fetch(url, {
-      headers: {
-        "Authorization": "Bearer " + token
-      }
+      headers: { "Authorization": "Bearer " + token }
     });
-
-    if (!res.ok) {
-      document.getElementById("status").innerText = "Error ❌";
-      return;
-    }
 
     const data = await res.json();
 
-    // ✅ SAFE DATA CLEANING
     const temp = (data.temperature || []).filter(v => !isNaN(v));
     const hum = (data.humidity || []).filter(v => !isNaN(v));
     const labels = data.time || [];
@@ -168,23 +154,23 @@ async function loadData() {
       return;
     }
 
-    // 🔥 CARDS
+    // ✅ CARDS
     document.getElementById("tempNow").innerText = temp.at(-1).toFixed(2) + " °C";
     document.getElementById("humNow").innerText = hum.at(-1).toFixed(2) + " %";
     document.getElementById("tempMax").innerText = Math.max(...temp).toFixed(2);
     document.getElementById("tempMin").innerText = Math.min(...temp).toFixed(2);
     document.getElementById("count").innerText = temp.length;
 
-    // ✅ FIX NaN ISSUE
-    const avgTemp = temp.reduce((a, b) => a + b, 0) / temp.length;
-    const avgHum = hum.reduce((a, b) => a + b, 0) / hum.length;
+    // ✅ AVG FIX
+    const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
+    const avgHum = hum.reduce((a,b)=>a+b,0)/hum.length;
 
     document.getElementById("avgTemp").innerText = avgTemp.toFixed(2);
     document.getElementById("avgHum").innerText = avgHum.toFixed(2);
 
     // 🌡 TEMP CHART
     if (!tempChart) {
-      tempChart = new Chart(document.getElementById("tempChart"), {
+      tempChart = new Chart(tempChart = document.getElementById("tempChart"), {
         type: "line",
         data: {
           labels: labels,
@@ -192,20 +178,12 @@ async function loadData() {
             label: "Temperature (°C)",
             data: temp,
             borderColor: "#3b82f6",
-            tension: 0.3,
-            fill: false
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.2
           }]
         },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: "white" } }
-          },
-          scales: {
-            x: { ticks: { color: "white" } },
-            y: { ticks: { color: "white" } }
-          }
-        }
+        options: chartOptions()
       });
     } else {
       tempChart.data.labels = labels;
@@ -223,20 +201,12 @@ async function loadData() {
             label: "Humidity (%)",
             data: hum,
             borderColor: "#ef4444",
-            tension: 0.3,
-            fill: false
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.2
           }]
         },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: "white" } }
-          },
-          scales: {
-            x: { ticks: { color: "white" } },
-            y: { ticks: { color: "white" } }
-          }
-        }
+        options: chartOptions()
       });
     } else {
       humChart.data.labels = labels;
@@ -252,9 +222,30 @@ async function loadData() {
   }
 }
 
+// ✅ CLEAN CHART STYLE
+function chartOptions() {
+  return {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: "white" } }
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: "white",
+          maxRotation: 0
+        }
+      },
+      y: {
+        ticks: { color: "white" }
+      }
+    }
+  };
+}
+
 // 🚀 AUTO REFRESH
 loadData();
-setInterval(loadData, 5000);
+setInterval(loadData, 10000); // slower = stable
 
 </script>
 
