@@ -72,20 +72,19 @@ app.get("/data", verifyToken, async (req, res) => {
 
   let rangeQuery;
 
-  // 🔥 DATE FILTER (PRIORITY)
-  if (req.query.start && req.query.end) {
+// 🔥 SINGLE DATE FILTER
+if (req.query.date) {
 
-    const start = req.query.start + "T00:00:00Z";
-    const end = req.query.end + "T23:59:59Z";
+  const start = req.query.date + "T00:00:00Z";
+  const end = req.query.date + "T23:59:59Z";
 
-    rangeQuery = `|> range(start: ${start}, stop: ${end})`;
+  rangeQuery = `|> range(start: ${start}, stop: ${end})`;
 
-  } else {
+} else {
 
-    let range = req.query.range || "1h";
-    rangeQuery = `|> range(start: -${range})`;
-
-  }
+  let range = req.query.range || "1h";
+  rangeQuery = `|> range(start: -${range})`;
+}
 
   const url =
     "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
