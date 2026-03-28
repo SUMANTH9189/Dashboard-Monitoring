@@ -9,39 +9,23 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-// ✅ SERVE FRONTEND
 app.use(express.static(path.join(__dirname, "public")));
 
-// 🔐 Dummy user
-const USERS = {
-  "client": "1234"
-};
+const USERS = { "client": "1234" };
 
-// 🔐 JWT Middleware
+// 🔐 AUTH
 function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-
-  if (!authHeader) {
-    return res.status(403).send("No token provided");
-  }
+  if (!authHeader) return res.status(403).send("No token");
 
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, "secretkey", (err, decoded) => {
-    if (err) {
-      return res.status(401).send("Invalid token");
-    }
-
+    if (err) return res.status(401).send("Invalid token");
     req.user = decoded;
     next();
   });
 }
-
-// ✅ ROOT
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
 
 // 🔐 LOGIN
 app.post("/login", (req, res) => {
@@ -55,10 +39,7 @@ app.post("/login", (req, res) => {
   res.status(401).send("Invalid credentials");
 });
 
-
-// 🔥 ===============================
-// 📡 ESP32 SENSOR API (NO AUTH)
-// 🔥 ===============================
+// 📡 SENSOR API
 app.get("/sensor", async (req, res) => {
   const { temperature, humidity } = req.query;
 
@@ -86,13 +67,10 @@ app.get("/sensor", async (req, res) => {
   }
 });
 
-
-// 🔥 ===============================
-// 📊 DASHBOARD DATA API (PROTECTED)
-// 🔥 ===============================
+// 📊 DATA API
 app.get("/data", verifyToken, async (req, res) => {
 
-  let range = req.query.range || "48h";
+  let range = req.query.range || "1h";   // ✅ IMPORTANT FIX
 
   const url =
     "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot";
@@ -102,9 +80,8 @@ app.get("/data", verifyToken, async (req, res) => {
       |> range(start: -${range})
       |> filter(fn: (r) => r._measurement == "dht_sensor")
       |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
-      |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+      |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)
       |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
-      |> keep(columns: ["_time", "temperature", "humidity"])
       |> sort(columns: ["_time"])
   `;
 
@@ -127,39 +104,31 @@ app.get("/data", verifyToken, async (req, res) => {
 
     lines.forEach(line => {
 
-      // ✅ skip only metadata lines
-      if (line.startsWith("#") || line.trim() === "") return;
+      if (line.startsWith("#") || line.includes("_time")) return;
 
       const cols = line.split(",");
 
-      // ✅ ensure it's a valid data row
-      if (cols.length < 5) return;
+      if (cols.length < 6) return;
 
+      const ts = cols[3];
       const temp = parseFloat(cols[cols.length - 2]);
       const hum = parseFloat(cols[cols.length - 1]);
-      const ts = cols[3]; // timestamp column
 
       if (!isNaN(temp) && !isNaN(hum)) {
         temperature.push(temp);
         humidity.push(hum);
         time.push(new Date(ts).toLocaleTimeString());
       }
-
     });
-
-    console.log("Fetched points:", temperature.length);
 
     res.json({ temperature, humidity, time });
 
-  } catch (error) {
-    console.log(error);
-    res.status(500).send("Error fetching data");
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error");
   }
 });
 
-// ▶ START SERVER
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server running...");
 });

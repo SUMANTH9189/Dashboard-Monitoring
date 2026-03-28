@@ -52,7 +52,7 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(7, 1fr); /* 🔥 UPDATED */
       gap: 15px;
       margin-bottom: 20px;
     }
@@ -97,12 +97,12 @@
 
   <div class="controls">
     <select id="rangeSelect" onchange="loadData()">
-  <option value="5m">Last 5 min</option>
-  <option value="30m">Last 30 min</option>
-  <option value="1h" selected>Last 1 hour</option>
-  <option value="24h">Last 24 hours</option>
-  <option value="48h">Last 48 hours</option>
-</select>
+      <option value="5m">Last 5 min</option>
+      <option value="30m">Last 30 min</option>
+      <option value="1h" selected>Last 1 hour</option>
+      <option value="24h">Last 24 hours</option>
+      <option value="48h">Last 48 hours</option>
+    </select>
 
     <button onclick="loadData()">🔄 Refresh</button>
     <span class="status" id="status">Loading...</span>
@@ -137,6 +137,17 @@
       <div class="card-title">📊 Data Points</div>
       <div id="count" class="card-value">--</div>
     </div>
+
+    <!-- 🔥 NEW -->
+    <div class="card">
+      <div class="card-title">📊 Avg Temp</div>
+      <div id="avgTemp" class="card-value">--</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Avg Humidity</div>
+      <div id="avgHum" class="card-value">--</div>
+    </div>
   </div>
 
   <!-- 📊 CHARTS -->
@@ -161,8 +172,10 @@ async function loadData() {
 
   document.getElementById("status").innerText = "Loading...";
 
+  const range = document.getElementById("rangeSelect").value;
+
   try {
-    const res = await fetch("/data", {
+    const res = await fetch(`/data?range=${range}`, {
       headers: {
         "Authorization": "Bearer " + token
       }
@@ -183,14 +196,22 @@ async function loadData() {
       return;
     }
 
-    // 🔥 UPDATE CARDS
+    // 🔥 CARDS
     document.getElementById("tempNow").innerText = temp.at(-1) + " °C";
     document.getElementById("humNow").innerText = hum.at(-1) + " %";
     document.getElementById("tempMax").innerText = Math.max(...temp);
     document.getElementById("tempMin").innerText = Math.min(...temp);
     document.getElementById("count").innerText = temp.length;
 
-    const labels = temp.map((_, i) => i+1);
+    // 🔥 AVERAGE
+    const avgTemp = temp.reduce((a,b)=>a+b,0)/temp.length;
+    const avgHum = hum.reduce((a,b)=>a+b,0)/hum.length;
+
+    document.getElementById("avgTemp").innerText = avgTemp.toFixed(1) + " °C";
+    document.getElementById("avgHum").innerText = avgHum.toFixed(1) + " %";
+
+    // 🔥 USE REAL TIME
+    const labels = data.time;
 
     // 🌡 TEMP CHART
     if (!tempChart) {
