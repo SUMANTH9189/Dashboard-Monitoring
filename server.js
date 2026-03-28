@@ -74,10 +74,12 @@ app.get("/data", verifyToken, async (req, res) => {
 
   let rangeQuery;
 
+  // ✅ DATE FILTER FIXED
   if (req.query.date) {
     const start = `${req.query.date}T00:00:00Z`;
     const end = `${req.query.date}T23:59:59Z`;
-    rangeQuery = `|> range(start: ${start}, stop: ${end})`;
+
+    rangeQuery = `|> range(start: time(v: "${start}"), stop: time(v: "${end}"))`;
   } else {
     let range = req.query.range || "1h";
     rangeQuery = `|> range(start: -${range})`;
@@ -94,6 +96,7 @@ app.get("/data", verifyToken, async (req, res) => {
   `;
 
   try {
+
     const response = await fetch(
       "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot",
       {
@@ -107,6 +110,9 @@ app.get("/data", verifyToken, async (req, res) => {
     );
 
     const text = await response.text();
+
+    console.log("RAW RESPONSE:", text.substring(0, 200)); // debug
+
     const lines = text.split("\n");
 
     let temperature = [];
@@ -130,13 +136,24 @@ app.get("/data", verifyToken, async (req, res) => {
       const hum = parseFloat(cols[cols.length - 1]);
 
       if (!isNaN(temp) && !isNaN(hum)) {
+
         temperature.push(temp);
         humidity.push(hum);
 
         const d = new Date(ts);
-        time.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+
+        // ✅ CLEAN TIME FORMAT
+        time.push(
+          d.toLocaleString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+          })
+        );
       }
     });
+
+    console.log("POINTS:", temperature.length);
 
     res.json({ temperature, humidity, time });
 

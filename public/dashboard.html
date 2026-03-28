@@ -21,9 +21,7 @@
       border-bottom: 1px solid #1f2937;
     }
 
-    h1 {
-      font-size: 20px;
-    }
+    h1 { font-size: 20px; }
 
     .controls {
       display: flex;
@@ -39,9 +37,7 @@
       color: white;
     }
 
-    .container {
-      padding: 20px;
-    }
+    .container { padding: 20px; }
 
     .cards {
       display: grid;
@@ -56,9 +52,7 @@
       text-align: center;
     }
 
-    .card-title {
-      color: #9ca3af;
-    }
+    .card-title { color: #9ca3af; }
 
     .card-value {
       font-size: 22px;
@@ -88,7 +82,6 @@
       <option value="48h">48 hours</option>
     </select>
 
-    <!-- 🔥 DATE PICKER -->
     <input type="date" id="startDate">
 
     <button onclick="loadData()">Refresh</button>
@@ -114,11 +107,8 @@
   <canvas id="tempChart"></canvas>
   <canvas id="humChart"></canvas>
 </div>
-<div id="avgTemp"></div>
-<div id="avgHum"></div>
-</div>
 
-<!-- ONLY SCRIPT PART SHOWN (UI already good) -->
+</div>
 
 <script>
 
@@ -137,13 +127,21 @@ async function loadData() {
     const date = document.getElementById("startDate").value;
 
     let url = `/data?range=${range}`;
-    if (date && date !== "") url = `/data?date=${date}`;
+    if (date) url = `/data?date=${date}`;
 
     console.log("Fetching:", url);
 
     const res = await fetch(url, {
       headers: { "Authorization": "Bearer " + token }
     });
+
+    // 🔥 HANDLE TOKEN ERROR
+    if (res.status === 403 || res.status === 401) {
+      localStorage.clear();
+      alert("Session expired. Please login again.");
+      window.location.href = "index.html";
+      return;
+    }
 
     const data = await res.json();
 
@@ -152,7 +150,7 @@ async function loadData() {
     const labels = data.time || [];
 
     if (temp.length === 0) {
-      document.getElementById("status").innerText = "No Data";
+      document.getElementById("status").innerText = "No Data ❌";
       return;
     }
 
@@ -230,12 +228,8 @@ function chartOptions() {
       legend: { labels: { color: "white" } }
     },
     scales: {
-      x: {
-        ticks: { color: "white", maxRotation: 0 }
-      },
-      y: {
-        ticks: { color: "white" }
-      }
+      x: { ticks: { color: "white" } },
+      y: { ticks: { color: "white" } }
     }
   };
 }
