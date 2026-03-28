@@ -1,16 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Login</title>
+  <meta charset="UTF-8">
+  <title>SRIOT Dashboard Login</title>
+
+  <!-- Bootstrap CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background: #f5f6fa;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .login-card {
+      width: 350px;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      background: white;
+      text-align: center;
+    }
+
+    .title {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 25px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      border-radius: 8px;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Login</h2>
+<div class="login-card">
 
-<input type="text" id="username" placeholder="Username"><br><br>
-<input type="password" id="password" placeholder="Password"><br><br>
+  <div class="title">SRIOT Dashboard Login</div>
 
-<button onclick="login()">Login</button>
+  <div class="mb-3">
+    <input type="text" id="username" class="form-control" placeholder="Username">
+  </div>
+
+  <div class="mb-3">
+    <input type="password" id="password" class="form-control" placeholder="Password">
+  </div>
+
+  <button class="btn btn-primary" onclick="login()">Login</button>
+
+</div>
 
 <script>
 
@@ -39,12 +84,8 @@ async function login() {
     if (res.ok) {
       const data = await res.json();
 
-      console.log("Token received:", data.token);
-
-      // ✅ Save token
       localStorage.setItem("token", data.token);
 
-      // 🔥 FORCE REDIRECT (FIXED)
       window.location.replace("dashboard.html");
 
     } else {
@@ -52,8 +93,8 @@ async function login() {
     }
 
   } catch (err) {
-    console.error("Error:", err);
-    alert("Server error. Try again later.");
+    console.error(err);
+    alert("Server error");
   }
 }
 
