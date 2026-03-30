@@ -11,7 +11,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const USERS = { "client": "1234" };
+const USERS = {
+  "sumanth": "1234",
+  "client2": "abcd",
+  "user3": "xyz"
+};
 
 // 🔐 AUTH
 function verifyToken(req, res, next) {
@@ -41,7 +45,7 @@ app.post("/login", (req, res) => {
 
 // 📡 SENSOR API
 app.get("/sensor", async (req, res) => {
-  const { temperature, humidity } = req.query;
+  const { temperature, humidity, userId } = req.query;
 
   if (!temperature || !humidity) {
     return res.status(400).send("Missing values");
@@ -49,8 +53,10 @@ app.get("/sensor", async (req, res) => {
 
   const writeUrl =
     "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
+    
+  const lineProtocol = `dht_sensor,userId=${userId} temperature=${temperature},humidity=${humidity}`;
 
-  const lineProtocol = `dht_sensor temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
+  //const lineProtocol = `dht_sensor temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
 
   try {
     await fetch(writeUrl, {
@@ -88,6 +94,7 @@ app.get("/data", verifyToken, async (req, res) => {
     from(bucket: "iot_data")
       ${rangeQuery}
       |> filter(fn: (r) => r._measurement == "dht_sensor")
+      |> filter(fn: (r) => r.userId == "${req.user.username}")
       |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
       |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
