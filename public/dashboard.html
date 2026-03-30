@@ -23,6 +23,17 @@
 
     h1 { font-size: 20px; }
 
+    .right-section {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .welcome {
+      font-size: 14px;
+      color: #9ca3af;
+    }
+
     .controls {
       display: flex;
       gap: 10px;
@@ -35,6 +46,7 @@
       border: none;
       background: #1f2937;
       color: white;
+      cursor: pointer;
     }
 
     .container { padding: 20px; }
@@ -81,20 +93,29 @@
 <header>
   <h1>📡 SRIOT Dashboard</h1>
 
-  <div class="controls">
-    <select id="rangeSelect" onchange="loadData()">
-      <option value="5m">5 min</option>
-      <option value="30m">30 min</option>
-      <option value="1h" selected>1 hour</option>
-      <option value="24h">24 hours</option>
-      <option value="48h">48 hours</option>
-    </select>
+  <!-- 🔥 RIGHT SIDE -->
+  <div class="right-section">
 
-    <input type="date" id="startDate">
+    <div class="welcome" id="welcomeText">Welcome</div>
 
-    <button onclick="loadData()">Refresh</button>
+    <div class="controls">
+      <select id="rangeSelect" onchange="loadData()">
+        <option value="5m">5 min</option>
+        <option value="30m">30 min</option>
+        <option value="1h" selected>1 hour</option>
+        <option value="24h">24 hours</option>
+        <option value="48h">48 hours</option>
+      </select>
+
+      <input type="date" id="startDate">
+
+      <button onclick="loadData()">Refresh</button>
+
+      <button onclick="logout()">Logout</button>
+    </div>
 
     <span id="status">Loading...</span>
+
   </div>
 </header>
 
@@ -123,11 +144,31 @@ const BASE_URL = "https://iot-backend-atfp.onrender.com";
 
 let tempChart, humChart;
 
-// 🔥 CHART OPTIONS (FIX HERE)
+// 🔥 SHOW USERNAME
+function showUsername() {
+  const token = localStorage.getItem("token");
+
+  if (!token) return;
+
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    document.getElementById("welcomeText").innerText = "Welcome " + payload.username;
+  } catch (err) {
+    console.log("Token parse error");
+  }
+}
+
+// 🔐 LOGOUT
+function logout() {
+  localStorage.removeItem("token");
+  window.location.href = "index.html";
+}
+
+// 🔥 CHART OPTIONS
 function chartOptions() {
   return {
     responsive: true,
-    maintainAspectRatio: false, // ⭐ IMPORTANT FIX
+    maintainAspectRatio: false,
     plugins: {
       legend: { labels: { color: "white" } }
     },
@@ -216,7 +257,7 @@ async function loadData() {
             tension: 0.2
           }]
         },
-        options: chartOptions() // ⭐ ADDED HERE
+        options: chartOptions()
       });
     } else {
       tempChart.data.labels = labels;
@@ -237,7 +278,7 @@ async function loadData() {
             tension: 0.2
           }]
         },
-        options: chartOptions() // ⭐ ADDED HERE
+        options: chartOptions()
       });
     } else {
       humChart.data.labels = labels;
@@ -253,7 +294,8 @@ async function loadData() {
   }
 }
 
-// START
+// 🚀 START
+showUsername();
 loadData();
 setInterval(loadData, 10000);
 

@@ -60,18 +60,24 @@
 
 <script>
 
-// 🔥 Your backend URL
 const BASE_URL = "https://iot-backend-atfp.onrender.com";
 
-// 🔐 If already logged in → go to dashboard
+// 🔐 Auto redirect if already logged in
 const token = localStorage.getItem("token");
 if (token) {
   window.location.href = "dashboard.html";
 }
 
 async function login() {
-  const username = document.getElementById("username").value;
-  const password = document.getElementById("password").value;
+
+  let username = document.getElementById("username").value.trim().toLowerCase(); // 🔥 FIX
+  let password = document.getElementById("password").value.trim();
+
+  // ✅ validation
+  if (!username || !password) {
+    alert("Enter username & password");
+    return;
+  }
 
   try {
     const res = await fetch(BASE_URL + "/login", {
@@ -90,7 +96,7 @@ async function login() {
       window.location.replace("dashboard.html");
 
     } else {
-      alert("Invalid login");
+      alert("Invalid login ❌");
     }
 
   } catch (err) {
