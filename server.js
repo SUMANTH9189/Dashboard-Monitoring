@@ -11,52 +11,109 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const USERS = {
-  "sumanth": "1234",
-  "client2": "abcd",
-  "user3": "xyz"
-};
+const SECRET = "secretkey";
 
-// 🔐 AUTH
+
+// 🔐 AUTH MIDDLEWARE
 function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
+
   if (!authHeader) return res.status(403).send("No token");
 
   const token = authHeader.split(" ")[1];
 
-  jwt.verify(token, "secretkey", (err, decoded) => {
+  jwt.verify(token, SECRET, (err, decoded) => {
     if (err) return res.status(401).send("Invalid token");
     req.user = decoded;
     next();
   });
 }
 
-// 🔐 LOGIN
-app.post("/login", (req, res) => {
+
+// 🔥 SIGNUP API (STORE USER IN INFLUXDB)
+app.post("/signup", async (req, res) => {
   const { username, password } = req.body;
 
-  if (USERS[username] === password) {
-    const token = jwt.sign({ username }, "secretkey");
-    return res.json({ token });
+  if (!username || !password) {
+    return res.status(400).send("Missing fields");
   }
 
-  res.status(401).send("Invalid credentials");
+  const writeUrl =
+    "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
+
+  const lineProtocol = `users username="${username}",password="${password}"`;
+
+  try {
+    await fetch(writeUrl, {
+      method: "POST",
+      headers: {
+        Authorization: "Token " + process.env.INFLUX_TOKEN,
+        "Content-Type": "text/plain"
+      },
+      body: lineProtocol
+    });
+
+    res.send("User registered");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Signup error");
+  }
 });
+
+
+// 🔐 LOGIN (FETCH USER FROM INFLUXDB)
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  const query = `
+    from(bucket: "iot_data")
+      |> range(start: -30d)
+      |> filter(fn: (r) => r._measurement == "users")
+      |> filter(fn: (r) => r.username == "${username}")
+      |> last()
+  `;
+
+  try {
+    const response = await fetch(
+      "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Token " + process.env.INFLUX_TOKEN,
+          "Content-Type": "application/vnd.flux"
+        },
+        body: query
+      }
+    );
+
+    const text = await response.text();
+
+    if (!text.includes(password)) {
+      return res.status(401).send("Invalid credentials");
+    }
+
+    const token = jwt.sign({ username }, SECRET);
+    res.json({ token });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Login error");
+  }
+});
+
 
 // 📡 SENSOR API
 app.get("/sensor", async (req, res) => {
   const { temperature, humidity, userId } = req.query;
 
-  if (!temperature || !humidity) {
+  if (!temperature || !humidity || !userId) {
     return res.status(400).send("Missing values");
   }
 
   const writeUrl =
     "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
-    
-  const lineProtocol = `dht_sensor,userId=${userId} temperature=${temperature},humidity=${humidity}`;
 
-  //const lineProtocol = `dht_sensor temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
+  const lineProtocol = `dht_sensor,userId=${userId} temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
 
   try {
     await fetch(writeUrl, {
@@ -75,6 +132,7 @@ app.get("/sensor", async (req, res) => {
   }
 });
 
+
 // 📊 DATA API
 app.get("/data", verifyToken, async (req, res) => {
 
@@ -86,24 +144,24 @@ app.get("/data", verifyToken, async (req, res) => {
 
     rangeQuery = `|> range(start: time(v: "${start}"), stop: time(v: "${end}"))`;
   } else {
-    let range = req.query.range || "1h";
+    const range = req.query.range || "1h";
     rangeQuery = `|> range(start: -${range})`;
   }
+
+  const username = req.user.username;
 
   const query = `
     from(bucket: "iot_data")
       ${rangeQuery}
       |> filter(fn: (r) => r._measurement == "dht_sensor")
-      |> filter(fn: (r) => r.userId == "${req.user.username}")
+      |> filter(fn: (r) => r["userId"] == "${username}")
       |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
       |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
       |> keep(columns: ["_time","temperature","humidity"])
-      |> sort(columns: ["_time"])
   `;
 
   try {
-
     const response = await fetch(
       "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot",
       {
@@ -124,16 +182,11 @@ app.get("/data", verifyToken, async (req, res) => {
     let time = [];
 
     lines.forEach(line => {
-
-      if (
-        line.startsWith("#") ||
-        line.includes("_time") ||
-        line.trim() === ""
-      ) return;
+      if (line.startsWith("#") || line.includes("_time") || line.trim() === "") return;
 
       const cols = line.split(",");
+      if (cols.length < 6) return;
 
-      // ✅ FIX: safer column parsing
       const ts = cols[3];
       const temp = parseFloat(cols[cols.length - 2]);
       const hum = parseFloat(cols[cols.length - 1]);
@@ -143,17 +196,9 @@ app.get("/data", verifyToken, async (req, res) => {
         humidity.push(hum);
 
         const d = new Date(ts);
-        time.push(
-          d.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit"
-          })
-        );
+        time.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       }
-
     });
-
-    console.log("POINTS:", temperature.length);
 
     res.json({ temperature, humidity, time });
 
@@ -162,6 +207,7 @@ app.get("/data", verifyToken, async (req, res) => {
     res.status(500).send("Error");
   }
 });
+
 
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server running...");
