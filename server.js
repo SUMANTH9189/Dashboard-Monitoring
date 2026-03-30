@@ -40,7 +40,7 @@ app.post("/signup", (req, res) => {
 });
 
 // ========================
-// 🔐 LOGIN
+// 🔐 LOGIN (UPDATED WITH EXPIRY)
 // ========================
 app.post("/login", (req, res) => {
   let { username, password } = req.body;
@@ -48,7 +48,14 @@ app.post("/login", (req, res) => {
   username = username.trim().toLowerCase();
 
   if (USERS[username] === password) {
-    const token = jwt.sign({ username }, SECRET);
+
+    // 🔥 TOKEN WITH EXPIRY (1 hour)
+    const token = jwt.sign(
+      { username },
+      SECRET,
+      { expiresIn: "20m" }
+    );
+
     return res.json({ token });
   }
 

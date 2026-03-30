@@ -140,6 +140,22 @@
 
 <script>
 
+// 🔥 AUTO LOGOUT AFTER 20 MIN
+const loginTime = localStorage.getItem("loginTime");
+
+if (loginTime) {
+  const now = Date.now();
+  const diff = now - loginTime;
+
+  const SESSION_TIME = 20 * 60 * 1000; // 20 minutes
+
+  if (diff > SESSION_TIME) {
+    localStorage.clear();
+    alert("Session expired. Login again.");
+    window.location.href = "index.html";
+  }
+}
+
 const BASE_URL = "https://iot-backend-atfp.onrender.com";
 
 let tempChart, humChart;
