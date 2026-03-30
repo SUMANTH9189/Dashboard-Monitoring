@@ -24,17 +24,21 @@ app.post("/signup", (req, res) => {
 
   username = username.trim().toLowerCase();
 
+  // 🔥 LENGTH CHECK
+  if (username.length < 8) {
+    return res.status(400).send("Username must be at least 8 characters");
+  }
+
   if (!username || !password) {
     return res.status(400).send("Missing fields");
   }
 
+  // 🔥 DUPLICATE CHECK
   if (USERS[username]) {
-    return res.status(400).send("User already exists ❌");
+    return res.status(400).send("Username already exists ❌");
   }
 
   USERS[username] = password;
-
-  console.log("NEW USER:", username);
 
   res.send("Signup successful ✅");
 });

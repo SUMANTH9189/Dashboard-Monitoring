@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>SRIOT Signup</title>
+
   <style>
     body {
       font-family: Arial;
@@ -52,6 +53,21 @@
       display: block;
       margin-top: 12px;
     }
+
+    /* 🔥 ERROR TEXT */
+    .error {
+      color: #ef4444;
+      font-size: 12px;
+      margin-top: -5px;
+      text-align: left;
+    }
+
+    .note {
+      color: #9ca3af;
+      font-size: 12px;
+      text-align: left;
+      margin-top: -5px;
+    }
   </style>
 </head>
 
@@ -60,8 +76,20 @@
 <div class="box">
   <h2>SRIOT Signup</h2>
 
-  <input id="username" placeholder="Username">
+  <!-- USERNAME -->
+  <input id="username" placeholder="Username"
+         oninput="handleUsernameInput()">
+
+  <!-- 🔥 NOTE -->
+  <div class="note">Minimum 8 lowercase characters</div>
+
+  <!-- ERROR -->
+  <div id="userError" class="error"></div>
+
+  <!-- PASSWORD -->
   <input id="password" type="password" placeholder="Password">
+
+  <div id="passError" class="error"></div>
 
   <button onclick="signup()">Signup</button>
 
@@ -72,14 +100,33 @@
 
 const BASE_URL = "https://iot-backend-atfp.onrender.com";
 
+// 🔥 FORCE LOWERCASE INPUT
+function handleUsernameInput() {
+  let input = document.getElementById("username");
+  input.value = input.value.toLowerCase();
+}
+
+// 🔥 SIGNUP FUNCTION
 async function signup() {
 
-  let username = document.getElementById("username").value.trim().toLowerCase(); // 🔥 FIX
+  let username = document.getElementById("username").value.trim();
   let password = document.getElementById("password").value.trim();
 
-  // ✅ VALIDATION
-  if (!username || !password) {
-    alert("Please fill all fields");
+  const userError = document.getElementById("userError");
+  const passError = document.getElementById("passError");
+
+  // RESET ERRORS
+  userError.innerText = "";
+  passError.innerText = "";
+
+  // 🔥 VALIDATION
+  if (username.length < 8) {
+    userError.innerText = "Username must be at least 8 characters";
+    return;
+  }
+
+  if (!password) {
+    passError.innerText = "Password required";
     return;
   }
 
@@ -95,14 +142,17 @@ async function signup() {
 
     const msg = await res.text();
 
-    alert(msg);
-
-    if (res.ok) {
-      window.location.href = "index.html";
+    // 🔥 HANDLE DUPLICATE USER
+    if (!res.ok) {
+      userError.innerText = msg;
+      return;
     }
 
+    alert("Signup successful ✅");
+    window.location.href = "index.html";
+
   } catch (err) {
-    alert("Error signing up");
+    alert("Server error");
   }
 }
 
