@@ -134,31 +134,14 @@ app.get("/sensor", async (req, res) => {
 
 
 // 📊 DATA API
-app.get("/data", verifyToken, async (req, res) => {
-
-  let rangeQuery;
-
-  if (req.query.date) {
-    const start = `${req.query.date}T00:00:00Z`;
-    const end = `${req.query.date}T23:59:59Z`;
-
-    rangeQuery = `|> range(start: time(v: "${start}"), stop: time(v: "${end}"))`;
-  } else {
-    const range = req.query.range || "1h";
-    rangeQuery = `|> range(start: -${range})`;
-  }
-
-  const username = req.user.username;
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
 
   const query = `
     from(bucket: "iot_data")
-      ${rangeQuery}
-      |> filter(fn: (r) => r._measurement == "dht_sensor")
-      |> filter(fn: (r) => r["userId"] == "${username}")
-      |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
-      |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
-      |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
-      |> keep(columns: ["_time","temperature","humidity"])
+      |> range(start: -30d)
+      |> filter(fn: (r) => r._measurement == "users")
+      |> filter(fn: (r) => r.username == "${username}")
   `;
 
   try {
@@ -175,36 +158,20 @@ app.get("/data", verifyToken, async (req, res) => {
     );
 
     const text = await response.text();
-    const lines = text.split("\n");
 
-    let temperature = [];
-    let humidity = [];
-    let time = [];
+    console.log("LOGIN RAW:", text);
 
-    lines.forEach(line => {
-      if (line.startsWith("#") || line.includes("_time") || line.trim() === "") return;
+    // ✅ FIXED CHECK
+    if (text.includes(username) && text.includes(password)) {
+      const token = jwt.sign({ username }, SECRET);
+      return res.json({ token });
+    }
 
-      const cols = line.split(",");
-      if (cols.length < 6) return;
-
-      const ts = cols[3];
-      const temp = parseFloat(cols[cols.length - 2]);
-      const hum = parseFloat(cols[cols.length - 1]);
-
-      if (!isNaN(temp) && !isNaN(hum)) {
-        temperature.push(temp);
-        humidity.push(hum);
-
-        const d = new Date(ts);
-        time.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-      }
-    });
-
-    res.json({ temperature, humidity, time });
+    res.status(401).send("Invalid credentials");
 
   } catch (err) {
     console.log(err);
-    res.status(500).send("Error");
+    res.status(500).send("Login error");
   }
 });
 
