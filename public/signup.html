@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SRIOT Signup</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #0b1220;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .box {
+      background: #111827;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    input {
+      display: block;
+      margin: 10px auto;
+      padding: 8px;
+      width: 200px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    button {
+      padding: 8px 15px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    a {
+      color: #60a5fa;
+      text-decoration: none;
+      display: block;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>SRIOT Signup</h2>
+
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+
+  <button onclick="signup()">Signup</button>
+
+  <a href="index.html">Already have account? Login</a>
+</div>
+
+<script>
+
+const BASE_URL = "https://iot-backend-atfp.onrender.com";
+
+async function signup() {
+
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  try {
+
+    const res = await fetch(BASE_URL + "/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ username, password })
+    });
+
+    const msg = await res.text();
+
+    alert(msg);
+
+    if (res.ok) {
+      window.location.href = "index.html";
+    }
+
+  } catch (err) {
+    alert("Error signing up");
+  }
+}
+
+</script>
+
+</body>
+</html>
