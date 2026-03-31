@@ -13,82 +13,102 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const SECRET = "secretkey";
 
-// 🔥 USER STORE (temporary memory)
+// ========================
+// 🔥 STORAGE (TEMP MEMORY)
+// ========================
 let USERS = {};
-
-// 🔥 DEVICE SYSTEM (IMPORTANT)
-let DEVICE_MAP = {};  
-let AVAILABLE_DEVICES = ["esp001", "esp002", "esp003"]; // you can add more
+let DEVICE_MAP = {};
+let AVAILABLE_DEVICES = ["esp001", "esp002", "esp003"];
 
 // ========================
 // 🔐 SIGNUP
 // ========================
 app.post("/signup", (req, res) => {
-  let { username, password } = req.body;
+  try {
+    let { username, password } = req.body;
 
-  username = username.trim().toLowerCase();
+    username = username?.trim().toLowerCase();
+    password = password?.trim();
 
-  if (!username || !password) {
-    return res.status(400).send("Missing fields");
+    if (!username || !password) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    if (username.length < 8) {
+      return res.status(400).json({ message: "Minimum 8 characters required" });
+    }
+
+    if (USERS[username]) {
+      return res.status(400).json({ message: "Username already exists ❌" });
+    }
+
+    if (AVAILABLE_DEVICES.length === 0) {
+      return res.status(400).json({ message: "No devices available ❌" });
+    }
+
+    // 🔥 Assign device
+    const deviceId = AVAILABLE_DEVICES.shift();
+
+    USERS[username] = password;
+    DEVICE_MAP[deviceId] = username;
+
+    console.log("USER:", username, "→ DEVICE:", deviceId);
+
+    res.json({
+      message: "Signup successful ✅",
+      deviceId: deviceId
+    });
+
+  } catch (err) {
+    console.error("Signup error:", err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  if (username.length < 8) {
-    return res.status(400).send("Minimum 8 characters required");
-  }
-
-  if (USERS[username]) {
-    return res.status(400).send("Username already exists ❌");
-  }
-
-  if (AVAILABLE_DEVICES.length === 0) {
-    return res.status(400).send("No devices available");
-  }
-
-  // 🔥 AUTO ASSIGN DEVICE
-  const deviceId = AVAILABLE_DEVICES.shift();
-
-  USERS[username] = password;
-  DEVICE_MAP[deviceId] = username;
-
-  console.log("USER:", username, "→ DEVICE:", deviceId);
-
-  res.send(`Signup successful ✅ Device assigned: ${deviceId}`);
 });
 
 // ========================
-// 🔐 LOGIN (WITH EXPIRY)
+// 🔐 LOGIN (20 min expiry)
 // ========================
 app.post("/login", (req, res) => {
-  let { username, password } = req.body;
+  try {
+    let { username, password } = req.body;
 
-  username = username.trim().toLowerCase();
+    username = username?.trim().toLowerCase();
+    password = password?.trim();
 
-  if (USERS[username] === password) {
+    if (USERS[username] === password) {
 
-    const token = jwt.sign(
-      { username },
-      SECRET,
-      { expiresIn: "20m" }   // ✅ 20 minutes
-    );
+      const token = jwt.sign(
+        { username },
+        SECRET,
+        { expiresIn: "20m" }
+      );
 
-    return res.json({ token });
+      return res.json({ token });
+    }
+
+    res.status(401).json({ message: "Invalid credentials ❌" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
   }
-
-  res.status(401).send("Invalid credentials ❌");
 });
 
 // ========================
-// 🔐 AUTH MIDDLEWARE
+// 🔐 AUTH
 // ========================
 function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
 
-  if (!authHeader) return res.status(403).send("No token");
+  if (!authHeader) {
+    return res.status(403).json({ message: "No token" });
+  }
 
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, SECRET, (err, decoded) => {
-    if (err) return res.status(401).send("Session expired ❌");
+    if (err) {
+      return res.status(401).json({ message: "Session expired ❌" });
+    }
 
     req.user = decoded;
     next();
@@ -96,29 +116,29 @@ function verifyToken(req, res, next) {
 }
 
 // ========================
-// 📡 SENSOR API (AUTO USER MAPPING)
+// 📡 SENSOR API
 // ========================
 app.get("/sensor", async (req, res) => {
-  const { temperature, humidity, deviceId } = req.query;
-
-  if (!temperature || !humidity || !deviceId) {
-    return res.status(400).send("Missing values");
-  }
-
-  const userId = DEVICE_MAP[deviceId];
-
-  if (!userId) {
-    return res.status(400).send("Device not assigned ❌");
-  }
-
-  const writeUrl =
-    "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
-
-  const lineProtocol =
-    `dht_sensor,userId=${userId},deviceId=${deviceId} ` +
-    `temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
-
   try {
+    const { temperature, humidity, deviceId } = req.query;
+
+    if (!temperature || !humidity || !deviceId) {
+      return res.status(400).send("Missing values");
+    }
+
+    const userId = DEVICE_MAP[deviceId];
+
+    if (!userId) {
+      return res.status(400).send("Device not assigned ❌");
+    }
+
+    const writeUrl =
+      "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
+
+    const lineProtocol =
+      `dht_sensor,userId=${userId},deviceId=${deviceId} ` +
+      `temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
+
     await fetch(writeUrl, {
       method: "POST",
       headers: {
@@ -133,43 +153,44 @@ app.get("/sensor", async (req, res) => {
     res.send("Data stored ✅");
 
   } catch (err) {
-    console.error(err);
+    console.error("Sensor error:", err);
     res.status(500).send("Error writing data");
   }
 });
 
 // ========================
-// 📊 DATA API (USER FILTER)
+// 📊 DATA API
 // ========================
 app.get("/data", verifyToken, async (req, res) => {
 
-  let rangeQuery;
-
-  if (req.query.date) {
-    const start = `${req.query.date}T00:00:00Z`;
-    const end = `${req.query.date}T23:59:59Z`;
-
-    rangeQuery = `|> range(start: time(v: "${start}"), stop: time(v: "${end}"))`;
-  } else {
-    const range = req.query.range || "1h";
-    rangeQuery = `|> range(start: -${range})`;
-  }
-
-  const username = req.user.username;
-
-  const query = `
-    from(bucket: "iot_data")
-      ${rangeQuery}
-      |> filter(fn: (r) => r._measurement == "dht_sensor")
-      |> filter(fn: (r) => r["userId"] == "${username}")
-      |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
-      |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
-      |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
-      |> keep(columns: ["_time","temperature","humidity"])
-      |> sort(columns: ["_time"])
-  `;
-
   try {
+
+    let rangeQuery;
+
+    if (req.query.date) {
+      const start = `${req.query.date}T00:00:00Z`;
+      const end = `${req.query.date}T23:59:59Z`;
+
+      rangeQuery = `|> range(start: time(v: "${start}"), stop: time(v: "${end}"))`;
+    } else {
+      const range = req.query.range || "1h";
+      rangeQuery = `|> range(start: -${range})`;
+    }
+
+    const username = req.user.username;
+
+    const query = `
+      from(bucket: "iot_data")
+        ${rangeQuery}
+        |> filter(fn: (r) => r._measurement == "dht_sensor")
+        |> filter(fn: (r) => r["userId"] == "${username}")
+        |> filter(fn: (r) => r._field == "temperature" or r._field == "humidity")
+        |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+        |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn:"_value")
+        |> keep(columns: ["_time","temperature","humidity"])
+        |> sort(columns: ["_time"])
+    `;
+
     const response = await fetch(
       "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/query?org=sriot",
       {
@@ -221,8 +242,8 @@ app.get("/data", verifyToken, async (req, res) => {
     res.json({ temperature, humidity, time });
 
   } catch (err) {
-    console.log(err);
-    res.status(500).send("Error");
+    console.error("DATA API error:", err);
+    res.status(500).json({ message: "Error fetching data" });
   }
 });
 
