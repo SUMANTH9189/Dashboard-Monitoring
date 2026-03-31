@@ -16,35 +16,47 @@ const SECRET = "secretkey";
 // 🔥 USER STORE (temporary memory)
 let USERS = {};
 
+// 🔥 DEVICE SYSTEM (IMPORTANT)
+let DEVICE_MAP = {};  
+let AVAILABLE_DEVICES = ["esp001", "esp002", "esp003"]; // you can add more
+
 // ========================
-// 🔐 SIGNUP (NEW)
+// 🔐 SIGNUP
 // ========================
 app.post("/signup", (req, res) => {
   let { username, password } = req.body;
 
   username = username.trim().toLowerCase();
 
-  // 🔥 LENGTH CHECK
-  if (username.length < 8) {
-    return res.status(400).send("Username must be at least 8 characters");
-  }
-
   if (!username || !password) {
     return res.status(400).send("Missing fields");
   }
 
-  // 🔥 DUPLICATE CHECK
+  if (username.length < 8) {
+    return res.status(400).send("Minimum 8 characters required");
+  }
+
   if (USERS[username]) {
     return res.status(400).send("Username already exists ❌");
   }
 
-  USERS[username] = password;
+  if (AVAILABLE_DEVICES.length === 0) {
+    return res.status(400).send("No devices available");
+  }
 
-  res.send("Signup successful ✅");
+  // 🔥 AUTO ASSIGN DEVICE
+  const deviceId = AVAILABLE_DEVICES.shift();
+
+  USERS[username] = password;
+  DEVICE_MAP[deviceId] = username;
+
+  console.log("USER:", username, "→ DEVICE:", deviceId);
+
+  res.send(`Signup successful ✅ Device assigned: ${deviceId}`);
 });
 
 // ========================
-// 🔐 LOGIN (UPDATED WITH EXPIRY)
+// 🔐 LOGIN (WITH EXPIRY)
 // ========================
 app.post("/login", (req, res) => {
   let { username, password } = req.body;
@@ -53,11 +65,10 @@ app.post("/login", (req, res) => {
 
   if (USERS[username] === password) {
 
-    // 🔥 TOKEN WITH EXPIRY (1 hour)
     const token = jwt.sign(
       { username },
       SECRET,
-      { expiresIn: "20m" }
+      { expiresIn: "20m" }   // ✅ 20 minutes
     );
 
     return res.json({ token });
@@ -77,7 +88,7 @@ function verifyToken(req, res, next) {
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, SECRET, (err, decoded) => {
-    if (err) return res.status(401).send("Invalid token");
+    if (err) return res.status(401).send("Session expired ❌");
 
     req.user = decoded;
     next();
@@ -85,21 +96,26 @@ function verifyToken(req, res, next) {
 }
 
 // ========================
-// 📡 SENSOR API (MULTI SENSOR)
+// 📡 SENSOR API (AUTO USER MAPPING)
 // ========================
 app.get("/sensor", async (req, res) => {
-  const { temperature, humidity, userId, sensorId } = req.query;
+  const { temperature, humidity, deviceId } = req.query;
 
-  if (!temperature || !humidity || !userId) {
+  if (!temperature || !humidity || !deviceId) {
     return res.status(400).send("Missing values");
+  }
+
+  const userId = DEVICE_MAP[deviceId];
+
+  if (!userId) {
+    return res.status(400).send("Device not assigned ❌");
   }
 
   const writeUrl =
     "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org=sriot&bucket=iot_data&precision=s";
 
-  // ✅ MULTI SENSOR TAG
   const lineProtocol =
-    `dht_sensor,userId=${userId},sensorId=${sensorId || "sensor1"} ` +
+    `dht_sensor,userId=${userId},deviceId=${deviceId} ` +
     `temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
 
   try {
@@ -112,7 +128,10 @@ app.get("/sensor", async (req, res) => {
       body: lineProtocol
     });
 
-    res.send("Data stored");
+    console.log("DATA:", deviceId, "→", userId);
+
+    res.send("Data stored ✅");
+
   } catch (err) {
     console.error(err);
     res.status(500).send("Error writing data");
@@ -120,7 +139,7 @@ app.get("/sensor", async (req, res) => {
 });
 
 // ========================
-// 📊 DATA API (FILTER USER)
+// 📊 DATA API (USER FILTER)
 // ========================
 app.get("/data", verifyToken, async (req, res) => {
 
@@ -190,10 +209,12 @@ app.get("/data", verifyToken, async (req, res) => {
         humidity.push(hum);
 
         const d = new Date(ts);
-        time.push(d.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        }));
+        time.push(
+          d.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        );
       }
     });
 
