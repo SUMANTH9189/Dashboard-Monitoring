@@ -140,15 +140,17 @@ async function signup() {
       body: JSON.stringify({ username, password })
     });
 
-    const msg = await res.text();
+    const data = await res.json();
 
-    // 🔥 HANDLE DUPLICATE USER
+    // 🔥 ERROR HANDLING
     if (!res.ok) {
-      userError.innerText = msg;
+      userError.innerText = data.message || data;
       return;
     }
 
-    alert("Signup successful ✅");
+    // ✅ SUCCESS
+    alert("Signup successful!\nYour Device ID: " + data.deviceId);
+
     window.location.href = "index.html";
 
   } catch (err) {
