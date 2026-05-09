@@ -140,18 +140,18 @@
 
 <script>
 
-// 🔥 AUTO LOGOUT AFTER 20 MIN
+// 🔥 AUTO LOGOUT AFTER 5 MINUTES
 const loginTime = localStorage.getItem("loginTime");
 
 if (loginTime) {
   const now = Date.now();
   const diff = now - loginTime;
 
-  const SESSION_TIME = 20 * 60 * 1000; // 20 minutes
+  const FIVE_MIN = 5 * 60 * 1000;
 
-  if (diff > SESSION_TIME) {
+  if (diff > FIVE_MIN) {
     localStorage.clear();
-    alert("Session expired. Login again.");
+    alert("Session expired. Please login again.");
     window.location.href = "index.html";
   }
 }
