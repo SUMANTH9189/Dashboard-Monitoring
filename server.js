@@ -318,9 +318,8 @@ app.get("/data", verifyToken, async (req, res) => {
 
       const ts = cols[3];
 
-      const temp = parseFloat(cols[cols.length - 2]);
-
-      const hum = parseFloat(cols[cols.length - 1]);
+      const hum = parseFloat(cols[cols.length - 2]);
+      const temp = parseFloat(cols[cols.length - 1]);
 
       if (!isNaN(temp) && !isNaN(hum)) {
 
