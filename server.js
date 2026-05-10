@@ -208,14 +208,19 @@ app.get("/sensor", async (req, res) => {
       `temperature=${parseFloat(temperature)},humidity=${parseFloat(humidity)}`;
 
     // Write to InfluxDB
-    await fetch(writeUrl, {
-      method: "POST",
-      headers: {
-        Authorization: "Token " + process.env.INFLUX_TOKEN,
-        "Content-Type": "text/plain"
-      },
-      body: lineProtocol
-    });
+    const influxResponse = await fetch(writeUrl, {
+  method: "POST",
+  headers: {
+    Authorization: "Token " + process.env.INFLUX_TOKEN,
+    "Content-Type": "text/plain"
+  },
+  body: lineProtocol
+});
+
+const responseText = await influxResponse.text();
+
+console.log("Influx Status:", influxResponse.status);
+console.log("Influx Response:", responseText);
 
     console.log(
       "DATA:",
